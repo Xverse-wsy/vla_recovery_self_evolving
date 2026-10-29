@@ -5,14 +5,14 @@ defaults:
 data:
   sources:
     - name: author40
-      path: ${oc.env:PI05_ROOT}/dataset_subsets/rlinf_pi05_libero_fewshot40_20261021
+      path: ${paths.author40}
       episodes_file: episodes.json
       episodes: 40
     - name: autonomous20
-      path: ${oc.env:PI05_ROOT}/dataset_subsets/pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot
+      path: ${paths.autonomous20}
       episodes: 20
     - name: recovery20
-      path: ${oc.env:PI05_ROOT}/dataset_subsets/pi05_long_recovery20_20261028/recovery_success20_lerobot
+      path: ${paths.recovery20}
       episodes: 20
 runner:
   logger:

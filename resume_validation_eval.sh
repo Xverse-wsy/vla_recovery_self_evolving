@@ -7,9 +7,10 @@ export PI05_EVAL_PYTHON="${PI05_EVAL_PYTHON:-/home/wenchaoxu/miniconda3/envs/cor
 export PI05_EVAL_GPU="${PI05_EVAL_GPU:-1}"
 RUN="$(cat "$PACKAGE/latest_validation.txt")"
 exec > >(tee -a "$RUN/validation_eval.log") 2>&1
+BASE_CHECKPOINT="$("$PYTHON" "$PACKAGE/settings.py" base_checkpoint)"
 for label in fewshot a60 b80; do
     if [[ "$label" == fewshot ]]; then
-        checkpoint="$PI05_ROOT/models/RLinf-Pi05-LIBERO-SFT"
+        checkpoint="$BASE_CHECKPOINT"
     else
         checkpoint="$("$PYTHON" -c 'import json,sys; s=json.load(open(sys.argv[1])); assert s["state"]=="complete"; print(s["checkpoint"]+"/actor")' "$RUN/$label/status.json")"
     fi

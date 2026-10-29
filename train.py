@@ -148,7 +148,14 @@ def main():
             assert actual_uuids == expected_uuids, actual_uuids
         assert all(w['epoch_plan'] == plan.describe() for w in workers)
         initial = actor.audit_state().wait()
-        write_json(output / 'initial_weights.json', initial)
+        if args.resume:
+            # Preserve the original step-zero audit across interruptions, so
+            # the A/B experiment can still verify identical initialization.
+            original_initial = json.loads((output / 'initial_weights.json').read_text())
+            assert all(item['optimizer_steps'] == 0 for item in original_initial)
+            write_json(output / 'resumed_weights.json', initial)
+        else:
+            write_json(output / 'initial_weights.json', initial)
         status.update(state='running', workers=workers)
         write_json(output / 'status.json', status)
         runner.run()

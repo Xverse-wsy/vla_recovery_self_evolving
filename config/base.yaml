@@ -1,5 +1,6 @@
 # Direct-source A/B SFT. Model and optimizer settings reuse the validated RLinf recipe.
 defaults:
+  - paths@paths
   - model/pi0_5@actor.model
   - hybrid_engines/fsdp@actor.fsdp_config
   - _self_
@@ -58,7 +59,7 @@ actor:
     precision: null
     is_lora: false
     add_value_head: false
-    model_path: ${oc.env:PI05_ROOT}/models/RLinf-Pi05-LIBERO-SFT
+    model_path: ${paths.base_checkpoint}
     use_proprio: true
     action_dim: 7
     num_action_chunks: 10
@@ -76,7 +77,7 @@ actor:
       use_rlt: false
     openpi_data:
       extra_delta_transform: false
-      norm_stats_path: ${oc.env:PI05_ROOT}/models/RLinf-Pi05-LIBERO-SFT/physical-intelligence/libero/norm_stats.json
+      norm_stats_path: ${paths.norm_stats}
   optim:
     lr: 5.0e-6
     adam_beta1: 0.9

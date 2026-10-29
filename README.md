@@ -4,6 +4,15 @@ This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets
 or modify the original datasets, RLinf source, or base model.
 
+For a new Linux GPU machine, follow [ENVIRONMENT.md](ENVIRONMENT.md). Install
+`requirements.txt` for training and `requirements-eval.txt` in a separate
+evaluation environment using `install_environment.sh`.
+
+For editable data paths, batch/GPU settings and a complete
+train-A → train-B → evaluate-original/A/B pipeline, see [RUNNING.md](RUNNING.md).
+Copy `experiment.env.example` to `experiment.env`, edit it, then run
+`bash run_experiment.sh plan` before `bash run_experiment.sh all`.
+
 ## Experiments
 
 | Name | Trajectories | Training frames | Initialization |
@@ -80,6 +89,20 @@ export PI05_EVAL_GPU=1
 export PI05_EVAL_OUTPUT="$PI05_ROOT/evaluations/pi05_ab_full"
 bash "$PACKAGE/evaluate_three.sh"
 ```
+
+For automatic episode partitioning across GPUs, set `PI05_EVAL_GPUS` instead:
+
+```bash
+export PI05_EVAL_GPUS=0,1,2,3,4,5,6,7
+bash "$PACKAGE/evaluate_three.sh"
+```
+
+Each GPU runs a separate model copy and a disjoint set of episodes. Each model
+still evaluates 2,000 total episodes across all GPUs. The launcher pins both
+inference and EGL rendering to the selected GPU, writes separate worker logs,
+and merges only after checking complete coverage and matching checkpoint hashes.
+Use `--resume` with the same shard count to continue. See ENVIRONMENT.md for
+multi-node evaluation with a shared output directory.
 
 Defaults evaluate all four standard LIBERO suites, all ten tasks, and all fifty
 initial states: 2,000 episodes per model. WCM and CAP-X are disabled. Identical

@@ -18,21 +18,22 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export LIBERO_CONFIG_PATH="$PI05_ROOT/libero-resources/config"
 export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl LIBERO_TYPE=standard ROBOT_PLATFORM=LIBERO
 echo "VALIDATION_OUTPUT=$RUN"
+BASE_CHECKPOINT="$("$PYTHON" "$PACKAGE/settings.py" base_checkpoint)"
 CUDA_VISIBLE_DEVICES='' "$PYTHON" -Bu "$PACKAGE/validate_data.py" --output "$RUN/data"
 CUDA_VISIBLE_DEVICES='' "$PYTHON" -Bu "$PACKAGE/validate_sampler.py" --output "$RUN/data/sampler16_validation.json"
+CUDA_VISIBLE_DEVICES='' "$PYTHON" -Bu "$PACKAGE/validate_parallel.py" --output "$RUN/data/parallel_validation.json"
 unset CUDA_VISIBLE_DEVICES RAY_ADDRESS
 for experiment in a60 b80; do
     "$PYTHON" -Bu "$PACKAGE/train.py" --experiment "$experiment" --gpus "$GPUS" \
         --smoke --output "$RUN/$experiment"
 done
-EVAL_GPU="${GPUS%%,*}"
 for label in fewshot a60 b80; do
     if [[ "$label" == fewshot ]]; then
-        checkpoint="$PI05_ROOT/models/RLinf-Pi05-LIBERO-SFT"
+        checkpoint="$BASE_CHECKPOINT"
     else
         checkpoint="$("$PYTHON" -c 'import json,sys; print(json.load(open(sys.argv[1]))["checkpoint"]+"/actor")' "$RUN/$label/status.json")"
     fi
-    CUDA_VISIBLE_DEVICES="$EVAL_GPU" PYTHONPATH="$PACKAGE:$PI05_ROOT/RLinf:$PI05_ROOT/openpi/src:$PI05_ROOT/openpi/packages/openpi-client/src" "$EVAL_PYTHON" -Bu "$PACKAGE/evaluate.py" \
+    PI05_EVAL_PYTHON="$EVAL_PYTHON" bash "$PACKAGE/run_eval_parallel.sh" --gpus "$GPUS" \
         --label "$label" --checkpoint "$checkpoint" --output "$RUN/eval_$label" \
         --trials 1 --tasks 0
 done

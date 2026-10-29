@@ -3,5 +3,7 @@ __pycache__/
 .DS_Store
 reports/
 latest_validation.txt
+latest_parallel_validation.txt
 .env
 .env.*
+experiment.env

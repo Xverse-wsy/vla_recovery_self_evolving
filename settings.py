@@ -11,3 +11,16 @@ def load_config(experiment):
         cfg = compose(config_name=experiment)
     OmegaConf.resolve(cfg)
     return cfg
+
+
+def load_paths():
+    cfg = OmegaConf.create({'paths': OmegaConf.load(Path(__file__).resolve().parent / 'config/paths.yaml')})
+    OmegaConf.resolve(cfg)
+    return cfg.paths
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Print one resolved shared path')
+    parser.add_argument('key', choices=['author40', 'autonomous20', 'recovery20', 'base_checkpoint', 'norm_stats'])
+    print(load_paths()[parser.parse_args().key])

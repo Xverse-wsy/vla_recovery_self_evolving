@@ -12,6 +12,8 @@ import traceback
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+from eval_jobs import jobs, partition
+from settings import load_paths
 
 SUITES = ['libero_spatial', 'libero_object', 'libero_goal', 'libero_10']
 
@@ -51,8 +53,8 @@ def summarize(output):
 
 
 def training_overlap(root, label):
-    sources = [root / 'dataset_subsets/pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot',
-               root / 'dataset_subsets/pi05_long_recovery20_20261028/recovery_success20_lerobot']
+    paths = load_paths()
+    sources = [Path(paths.autonomous20), Path(paths.recovery20)]
     sources = [] if label == 'fewshot' else sources[:1] if label == 'a60' else sources
     result = set()
     for folder in sources:
@@ -80,13 +82,16 @@ def main():
     ap.add_argument('--max-steps', type=int, default=0, help='0: native suite budget; nonzero: bounded smoke only')
     ap.add_argument('--resume', action='store_true')
     ap.add_argument('--no-video', action='store_true')
+    ap.add_argument('--num-shards', type=int, default=1)
+    ap.add_argument('--shard-index', type=int, default=0)
     args = ap.parse_args()
     assert 1 <= args.trials <= 50 and 1 <= args.action_chunk <= 10 and args.flow_steps > 0
     assert args.max_steps >= 0 and args.tasks and len(args.tasks) == len(set(args.tasks))
     assert all(0 <= i < 10 for i in args.tasks)
     assert len(args.suites) == len(set(args.suites))
+    assigned = set(partition(jobs(args.suites, args.tasks, args.trials), args.shard_index, args.num_shards))
     root = Path(os.environ['PI05_ROOT']).resolve()
-    norm = root / 'models/RLinf-Pi05-LIBERO-SFT/physical-intelligence/libero/norm_stats.json'
+    norm = Path(load_paths().norm_stats)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     from rlinf.models.embodiment.openpi.checkpoint import resolve_full_weights, resolve_model_safetensors
@@ -101,6 +106,9 @@ def main():
                save_video=not args.no_video,
                scope='full2000' if args.suites == SUITES and args.tasks == list(range(10))
                      and args.trials == 50 and args.max_steps == 0 else 'validation_subset')
+    # Explicit identity is also present for one-card parallel launcher runs.
+    if args.num_shards != 1 or os.environ.get('PI05_PARALLEL_WORKER') == '1':
+        run['shard'] = dict(index=args.shard_index, count=args.num_shards)
     if (output / 'run.json').exists():
         assert args.resume and json.loads((output / 'run.json').read_text()) == run, 'Evaluation configuration changed'
     else:
@@ -108,6 +116,19 @@ def main():
         save(output / 'run.json', run)
     save(output / 'status.json', dict(state='initializing', run=run))
     try:
+        # Completed/empty workers validate checkpoint identity but need no GPU.
+        pending = []
+        for suite, task, trial in assigned:
+            path = output / 'episodes' / suite / f'task_{task:02d}' / f'trial_{trial:02d}.json'
+            if not path.is_file() or json.loads(path.read_text())['state'] != 'complete':
+                pending.append((suite, task, trial))
+            elif not args.no_video:
+                assert path.with_suffix('.mp4').is_file() and path.with_suffix('.mp4').stat().st_size > 0, path
+        if not pending:
+            summary = summarize(output)
+            assert summary['episodes'] == len(assigned)
+            save(output / 'status.json', dict(state='complete', run=run, summary=summary))
+            return
         from rlinf.envs.sim.libero.libero_env import LiberoEnv
         from rlinf.models.embodiment.openpi import get_model
         from gpu_budget import set_limit, check_headroom
@@ -127,6 +148,8 @@ def main():
         assert policy.action_horizon == 10
         overlap = training_overlap(root, args.label)
         for suite in args.suites:
+            if not any(item[0] == suite for item in pending):
+                continue
             cfg = OmegaConf.load(root / f'RLinf/examples/embodiment/config/env/{suite}.yaml')
             cfg.total_num_envs = 1
             cfg.auto_reset = False
@@ -146,6 +169,8 @@ def main():
                 env.reset()  # Consume the wrapper's initial fixed-reset setup before explicit trial IDs.
                 for task in args.tasks:
                     for trial in range(args.trials):
+                        if (suite, task, trial) not in assigned:
+                            continue
                         result_path = output / 'episodes' / suite / f'task_{task:02d}' / f'trial_{trial:02d}.json'
                         if result_path.exists():
                             assert args.resume
@@ -211,7 +236,7 @@ def main():
             finally:
                 env.close()
         summary = summarize(output)
-        expected = len(args.suites) * len(args.tasks) * args.trials
+        expected = len(assigned)
         assert summary['episodes'] == expected
         save(output / 'status.json', dict(state='complete', run=run, summary=summary))
     except BaseException as exc:

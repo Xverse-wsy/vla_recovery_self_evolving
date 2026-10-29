@@ -66,8 +66,10 @@ def main():
             assert offset == len(reference)
             print('LEROBOT_MATCH',experiment,source['name'],len(reference),flush=True)
             del reference
-        plan = EpochPlan(len(raw), 2, cfg.actor.micro_batch_size,
-                         cfg.actor.global_batch_size // (2*cfg.actor.micro_batch_size))
+        # CPU reference uses one rank so any valid multi-GPU global batch works,
+        # including configurations for an odd number of training ranks.
+        plan = EpochPlan(len(raw), 1, cfg.actor.micro_batch_size,
+                         cfg.actor.global_batch_size // cfg.actor.micro_batch_size)
         for epoch in range(50):
             ranks = [ExactEpochSampler(len(raw),2,rank,seed=cfg.actor.seed) for rank in range(2)]
             for s in ranks:
@@ -78,13 +80,14 @@ def main():
             consumed = sum(plan.global_samples(o,plan.update_batches(o))
                            for o in range(0,plan.batches_per_epoch,plan.accumulation))
             assert consumed == len(raw)
-        loader, _, _, _ = build_loader(cfg, 2, 0)
+        loader, _, _, _ = build_loader(cfg, 1, 0)
         obs, actions, valid_samples = next(iter(loader))
-        assert valid_samples == 2
-        assert actions.shape == (2,10,32) and torch.isfinite(actions).all()
-        assert obs.state.shape == (2,32)
-        assert obs.tokenized_prompt.shape == (2,200)
-        assert all(v.shape == (2,3,224,224) and torch.isfinite(v).all() for v in obs.images.values())
+        batch_size = cfg.actor.micro_batch_size
+        assert valid_samples == batch_size
+        assert actions.shape == (batch_size,10,32) and torch.isfinite(actions).all()
+        assert obs.state.shape == (batch_size,32)
+        assert obs.tokenized_prompt.shape == (batch_size,200)
+        assert all(v.shape == (batch_size,3,224,224) and torch.isfinite(v).all() for v in obs.images.values())
         assert obs.image_masks['base_0_rgb'].all() and obs.image_masks['left_wrist_0_rgb'].all()
         assert not obs.image_masks['right_wrist_0_rgb'].any()
         raw.assert_unchanged()

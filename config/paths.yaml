@@ -1,0 +1,7 @@
+# Shared by training, evaluation and environment checks. Environment overrides
+# let experiment.env change paths without editing multiple scripts/YAML files.
+author40: ${oc.env:PI05_AUTHOR40_DIR,${oc.env:PI05_ROOT}/dataset_subsets/rlinf_pi05_libero_fewshot40_20261021}
+autonomous20: ${oc.env:PI05_AUTONOMOUS20_DIR,${oc.env:PI05_ROOT}/dataset_subsets/pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot}
+recovery20: ${oc.env:PI05_RECOVERY20_DIR,${oc.env:PI05_ROOT}/dataset_subsets/pi05_long_recovery20_20261028/recovery_success20_lerobot}
+base_checkpoint: ${oc.env:PI05_BASE_CHECKPOINT,${oc.env:PI05_ROOT}/models/RLinf-Pi05-LIBERO-SFT}
+norm_stats: ${oc.env:PI05_NORM_STATS,${paths.base_checkpoint}/physical-intelligence/libero/norm_stats.json}
