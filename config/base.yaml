@@ -1,0 +1,107 @@
+# Direct-source A/B SFT. Model and optimizer settings reuse the validated RLinf recipe.
+defaults:
+  - model/pi0_5@actor.model
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - _self_
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    # The launcher replaces these with explicit physical GPU IDs.
+    actor: '1,3'
+    env: '1,3'
+    rollout: '1,3'
+
+runner:
+  task_type: sft
+  logger:
+    log_path: ${oc.env:PI05_ROOT}/training_runs/pi05_direct
+    project_name: pi05_libero_continued_sft
+    experiment_name: direct_pi05
+    logger_backends: [tensorboard]
+  resume_dir: null
+  max_epochs: 50
+  max_steps: -1
+  # Embodied SFT has no built-in rollout validation in this version.
+  val_check_interval: -1
+  save_interval: 500
+  keep_last_checkpoints: 3
+  complete_epochs: true
+
+data:
+  # The external worker reads data.sources directly, without a merged export.
+  train_data_paths: direct_existing_parquets
+  sources: []
+  validation_indices: null
+  num_workers: 0
+
+actor:
+  group_name: ActorGroup
+  training_backend: fsdp
+  enable_offload: false
+  micro_batch_size: 2
+  global_batch_size: 100
+  gpu_memory_limit_gib: 40
+  gpu_headroom_gib: 12
+  seed: 42
+  model:
+    model_type: openpi
+    pi05: true
+    precision: null
+    is_lora: false
+    add_value_head: false
+    model_path: ${oc.env:PI05_ROOT}/models/RLinf-Pi05-LIBERO-SFT
+    use_proprio: true
+    action_dim: 7
+    num_action_chunks: 10
+    num_steps: 5
+    openpi:
+      task: sft
+      config_name: pi05_libero
+      action_horizon: 10
+      action_chunk: 10
+      action_env_dim: 7
+      model_action_dim: 32
+      discrete_state_input: false
+      max_token_len: 200
+      torch_compile: false
+      use_rlt: false
+    openpi_data:
+      extra_delta_transform: false
+      norm_stats_path: ${oc.env:PI05_ROOT}/models/RLinf-Pi05-LIBERO-SFT/physical-intelligence/libero/norm_stats.json
+  optim:
+    lr: 5.0e-6
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-8
+    weight_decay: 1.0e-10
+    clip_grad: 1.0
+    total_training_steps: null
+    lr_warmup_steps: 100
+    lr_scheduler: openpi_cosine
+    min_lr: 5.0e-7
+  fsdp_config:
+    strategy: fsdp
+    sharding_strategy: no_shard
+    use_orig_params: true
+    # sft_forward currently disables this in the upstream implementation.
+    # Do not assume activation checkpointing saves memory in this recipe.
+    gradient_checkpointing: false
+    cpu_offload: false
+    mixed_precision:
+      param_dtype: null
+      reduce_dtype: null
+      buffer_dtype: null
+
+reward:
+  use_reward_model: false
+critic:
+  use_critic_model: false

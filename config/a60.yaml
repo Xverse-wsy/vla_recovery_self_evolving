@@ -1,0 +1,16 @@
+defaults:
+  - base
+  - _self_
+
+data:
+  sources:
+    - name: author40
+      path: ${oc.env:PI05_ROOT}/dataset_subsets/rlinf_pi05_libero_fewshot40_20261021
+      episodes_file: episodes.json
+      episodes: 40
+    - name: autonomous20
+      path: ${oc.env:PI05_ROOT}/dataset_subsets/pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot
+      episodes: 20
+runner:
+  logger:
+    experiment_name: author40_autonomous20_epoch50
