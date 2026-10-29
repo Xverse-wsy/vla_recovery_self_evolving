@@ -1,5 +1,8 @@
 # π0.5 direct-source A/B experiment
 
+**接手本项目的 agent：先读 [AGENTS.md](AGENTS.md)。** 它列出实验定义、部署顺序、
+代码地图、参数位置、输出/续跑约定和已验证范围；不需要先前对话。
+
 This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets
 or modify the original datasets, RLinf source, or base model.

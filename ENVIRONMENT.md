@@ -22,6 +22,7 @@ mkdir -p "$PI05_ROOT"
 包不能代替这个源码目录。固定到已验证的提交：
 
 ```bash
+git clone https://github.com/RLinf/RLinf.git "$PI05_ROOT/RLinf"  # 已有目录时跳过clone
 git -C "$PI05_ROOT/RLinf" checkout c70606f08cdca259b8dec03d4430926b5b8fac9d
 ```
 
