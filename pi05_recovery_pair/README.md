@@ -7,6 +7,9 @@ RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)�
 
 最新方案先仅训练现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，
 监督速度方向；没有实现单时间点clean-action吸引／排斥，也不启动该训练分支。
+真实RLinf模型的FM直接调用上游`compute_loss`的联合prefix/suffix前向；冻结仍由参数的
+requires_grad控制。缓存前缀只用于采样分支，不用它替代原生FM前向。掩码及逐窗口平均
+由外部训练引擎处理，因此仍能排除模型填充维度并监督允许重复的成功尾部。
 
 | 来源 | H=10的尾部处理 |
 | --- | --- |
@@ -47,6 +50,23 @@ VLA:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配�
 config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认上限，
 **不表示数据遍历50个epoch**；正式预算通过该字段设置。沿用验证早停及checkpoint规则。
 未授权启动正式训练。旧pair配置与数据保留，可独立做对照；新FM资产禁止用于pair模式。
+
+真实GPU短验证入口如下。它只执行两次FM全局batch更新，第一步保存checkpoint后重新加载
+原始基座并恢复第二步；按三类来源检查原生compute_loss一致性和梯度，对全部冻结参数
+计算SHA256以确认未改变，训练参数必须改变。训练预算不会扩展为长训。
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m recovery_pair.fm_validation \
+  --prepared /path/to/new_positive_fm_prepared \
+  --config configs/libero_pi05_positive_fm.json \
+  --checkpoint /path/to/original/RLinf-Pi05-LIBERO-SFT \
+  --norm-stats /path/to/original/norm_stats.json \
+  --output /path/to/new_gpu_validation --device cuda:0 --max-cuda-memory-gb 20
+```
+
+执行前检查显存及磁盘；入口要求显存上限之外至少4GiB空闲余量。输出包含status、
+完整report、两步metrics、原生采样一致性检查及可恢复checkpoint，不调用LIBERO或API。
+短验证用于证明流程可运行，不能据此声称已完成正式训练或任务成功率评测。
 
 ## 已实现的行为
 

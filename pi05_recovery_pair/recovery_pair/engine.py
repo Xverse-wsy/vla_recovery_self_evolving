@@ -6,7 +6,7 @@ are bypassed by the adapter's direct suffix calls.
 """
 import torch
 from .flow import differentiable_sample, fm_prediction
-from .losses import distance_per_window, eta_at_update, pair_loss_per_window
+from .losses import eta_at_update, pair_loss_per_window
 
 
 def distributed_info():
@@ -23,6 +23,15 @@ def synchronize_gradients(model):
             if param.grad is None:
                 param.grad = torch.zeros_like(param)
             torch.distributed.all_reduce(param.grad, op=torch.distributed.ReduceOp.SUM)
+
+
+def fm_loss_elements(backend, observation, target, *, noise, time):
+    native = getattr(backend, 'fm_loss_elements', None)
+    if native is not None:
+        return native(observation, target, noise=noise, time=time)
+    # Explicit toy/test backends have no native model compute_loss API.
+    prediction, velocity_target = fm_prediction(backend, observation, target, noise=noise, time=time)
+    return (prediction - velocity_target).square()
 
 
 def accumulate_update(backend, observation_loader, records, plan, config, *, update_index,
@@ -63,9 +72,14 @@ def accumulate_update(backend, observation_loader, records, plan, config, *, upd
         # Invalid recorded targets must not influence valid predictions through
         # action-token attention before the masked loss is computed.
         target = torch.where(mask, target, torch.zeros_like(target))
-        prediction, velocity_target = fm_prediction(backend, observation_loader(selected), target,
+        element_loss = fm_loss_elements(backend, observation_loader(selected), target,
             noise=draws['fm_noise'][ids].to(device), time=draws['time'][ids].to(device))
-        loss, valid = distance_per_window(prediction, velocity_target, mask)
+        if element_loss.shape != mask.shape:
+            raise ValueError('Native FM loss shape does not match window mask')
+        # Mask before reduction; each window has equal logical batch weight.
+        count = mask.sum((1, 2))
+        loss = torch.where(mask, element_loss, torch.zeros_like(element_loss)).sum((1, 2)) / count.clamp_min(1)
+        valid = count > 0
         if not valid.all():
             raise ValueError('Empty positive windows must be removed before batching')
         objective = loss.sum() / n_fm

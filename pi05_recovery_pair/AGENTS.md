@@ -15,6 +15,13 @@ CAP-X code, RLinf code or old training configs to run it.
   Source-aware prepared artifacts cannot be used by pair modes. Do not overwrite
   the old matching libraries/payloads. fm_only_updates is an explicit update budget
   (default100), not 50 dataset epochs. No formal training was authorized here.
+  User subsequently authorized a bounded real GPU0 validation and pushing after it
+  passes: python -m recovery_pair.fm_validation. It runs exactly two FM updates,
+  fresh-base checkpoint reload/resume and native loss/gradient/frozen-weight audits.
+  Check free GPU memory; keep the allocator cap plus4GiB margin. This is not long training.
+  Real-model FM MUST call policy.compute_loss with explicit native noise/time;
+  do not substitute cached-prefix forward for native joint prefix/suffix SFT.
+  The engine masks/reduces returned element losses. Keep the cache for sampling.
 
 - User's current experiment uses the EXISTING four segment classes as training
   labels. Do not require another local-action review to use them. Preserve their

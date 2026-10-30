@@ -378,3 +378,32 @@ A800实际CPU准备及完整资产审计通过，输出`outputs/positive_fm_sour
 loss有效性、来源和负类拒绝、尾部损坏审计、纯FM模式约束、一次合成更新及checkpoint恢复。
 这不表示真实GPU纯FM更新已验证。默认预算仍为fm_only_updates=100次更新，正式预算可改，
 不宣称已实现或执行该数据集的50完整epoch训练。
+
+## 真实GPU0纯FM更新及checkpoint恢复（2026-10-31）
+
+用户授权在GPU0短验证通过后推送。启动前物理GPU0无计算进程，可用约78.7GiB；
+PyTorch allocator上限20GiB，入口要求另保留4GiB余量，未kill任何进程。
+可复现命令见README的`python -m recovery_pair.fm_validation`；
+完成输出`outputs/positive_fm_gpu0_validation_20261031_v2/`，独立screen正常退出。
+
+首次v1在任何优化器更新前发现缓存prefix/suffix的FM与上游原生联合前向不完全一致。
+本轮修正真实模型FM路径，直接调用上游`policy.compute_loss`（显式noise/time，
+关闭图像随机增强），外部仅按有效mask逐窗口平均；不通过会关闭checkpointing的
+`sft_forward`包装器。缓存前缀仍供部署／可微采样，RLinf源码和权重均未修改。
+此修正同时适用于旧pair训练的正向FM分支，pair采样定义不变。
+
+- 三类真实训练窗口分别验证：VLA中途10真实步、自主成功8真实＋2重复步、
+  CAP成功2真实＋8重复步。原生逐元素loss最大差均为0，梯度有限且非零，冻结参数无梯度。
+  旧缓存路径的逐元素loss差分别约0.000323、0.002042、0.091500；不再用其替代原生FM。
+- 完整FM64、microbatch1、lr1e-5、clip1、pair0、eta0，执行两次真实优化器更新；
+  第一次保存checkpoint后，释放模型，重新加载原始基座，核验初始化哈希，恢复并执行第二次。
+- 第1步loss0.11264807，裁剪前梯度范数0.45390469；第2步loss0.08448456、梯度0.62652665。
+  固定heldout验证loss依次0.05547954、0.05344647；两步下降不代表已获得任务成功率提升。
+- 可训练430098464参数，冻结2923335408参数；两步action expert参数哈希均改变，
+  全部冻结参数SHA256始终不变；原始基座文件与归一化资产SHA256也不变。
+- 原生／可微sampler前向差0、全部3步梯度检查通过；没有负分支优化。
+- 原prepared资产训练后完整审计通过；checkpoint保存和重载恢复通过。
+- 峰值allocated15.31037GiB、reserved15.75391GiB，总耗时约211.5秒；任务完成后释放GPU。
+- 完整CPU回归81 passed in10.92s，新增测试确保真实FM走原生hook且masked梯度权重正确。
+
+本次仅两次更新和短验证，不是100次正式训练或50epoch实验；未运行LIBERO评测或API。

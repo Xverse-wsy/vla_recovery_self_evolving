@@ -22,7 +22,7 @@ class PrefixCondition:
 class OpenPiBackend(torch.nn.Module):
     def __init__(self, policy, steps=3, fm_augmentation=False):
         super().__init__()
-        required = ['freeze_vlm', 'build_prefix_cache', 'run_suffix', 'velocity_from_suffix', 'sample_actions']
+        required = ['freeze_vlm', 'build_prefix_cache', 'run_suffix', 'velocity_from_suffix', 'sample_actions', 'compute_loss']
         if not all(callable(getattr(policy, name, None)) for name in required):
             raise TypeError('Expected pinned RLinf Pi0 interface; official OpenPI has a different API')
         if not policy.pi05 or getattr(policy.rlt_cfg, 'use_rlt', False):
@@ -55,6 +55,13 @@ class OpenPiBackend(torch.nn.Module):
     def sample_flow_time(self, batch_size, device):
         # Exactly the pinned compute_loss distribution; H is unrelated to K.
         return torch.distributions.Beta(torch.tensor(1.5), torch.tensor(1.0)).sample((batch_size,)).to(device) * .999 + .001
+
+    def fm_loss_elements(self, observation, actions, *, noise, time):
+        # FM uses the SAME joint prefix/suffix forward as upstream SFT. The
+        # cached-prefix path remains specific to deployment/pair sampling.
+        # Do not call sft_forward: that wrapper disables gradient checkpointing.
+        return self.policy.compute_loss(observation, actions, train=self.fm_augmentation,
+                                        noise=noise, time=time)
 
     @torch.no_grad()
     def deployment_sample(self, observation, noise):

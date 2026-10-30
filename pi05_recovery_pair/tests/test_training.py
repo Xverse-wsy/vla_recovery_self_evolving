@@ -44,6 +44,30 @@ def test_fm_only_empty_pair_and_missing_code_backfill(window,config):
     assert metrics['pair']==0 and np.isfinite(metrics['loss'])
 
 
+def test_native_fm_hook_is_used_instead_of_cached_sampler_and_receives_gradients(window,config):
+    class NativeOnly(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight=torch.nn.Parameter(torch.tensor(0.))
+            self.calls=0
+        def sample_flow_time(self,batch,device):
+            return torch.full((batch,),.5,device=device)
+        def fm_loss_elements(self,observation,target,*,noise,time):
+            self.calls+=1
+            assert noise.shape==target.shape and time.shape==(len(target),)
+            return (self.weight-target).square()
+        def prepare_condition(self,*args,**kwargs):
+            raise AssertionError('Native FM must not use cached-prefix sampling')
+    records=[window('native_positive')]
+    config=replace(config,fm_batch=8,pair_batch=0,eta=0)
+    model=NativeOnly()
+    plan=EpisodeEventSampler(records,[],config).draw()
+    metrics=accumulate_update(model,loader,records,plan,config,update_index=0,total_updates=1,mode='fm_only')
+    assert model.calls==8
+    assert metrics['fm']==pytest.approx(.25)
+    assert model.weight.grad.item()==pytest.approx(-1.)
+
+
 def test_invalid_recorded_fm_targets_cannot_change_prediction_or_loss(window,config):
     r=window('p0')
     config=replace(config,fm_batch=8,pair_batch=0)
