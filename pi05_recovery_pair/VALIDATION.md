@@ -329,3 +329,27 @@ prepared必须重建。不启用GPU、真实训练、仿真或API。
 完成，输出 `outputs/vla_negative_only_20261030_v1/report.json`：负查询40、排除CAP负11796；
 原正池保持861个VLA＋182个CAP窗口（14个成功后缀、1733动作），源索引SHA未变。
 这是CPU策略及正池一致性核验，negative_pairing_evaluated=false，未执行完整负配对统计。
+
+## VLA负片段完整匹配统计（2026-10-30）
+
+A800 GPU0实际完成 `python -m recovery_pair.negative_matching`，输出
+`outputs/vla_negative_matching_20261030_v1/`；固定当前门槛，未做训练或修改原数据。
+源索引SHA256：`bab907ae07282f068a9da56ac550dab2e4dd1427074da1b29be595861fdcf926`。
+
+- 负查询仅VLA失败：40窗口／40原片段／40独立父episode；CAP负11796窗口排除。
+- 正池1043窗口：VLA861＋已纳入CAP成功后缀182。
+- 严格配对：同公开指令、同split，位置≤1cm、旋转≤5°、state8 RMS≤0.10，
+  前视与腕部图像余弦距离各≤0.002；不使用特权信息、任务进度或未来观测。
+- 数值通过21个负窗口，30组关系；图像通过仍为21个、30组。
+- 动作检查后15窗口／15原片段／15父episode，共21条正参考，全部来自VLA。
+  其中train12、validation2、test1；episode各计一次。
+- 另6个有状态匹配的负窗口没有可用动作配对。共9组候选关系因
+  `insufficient_trusted_overlap`被排除（关系数不等于片段数）：双方有效动作与错误mask
+  取交集、移除共享近似动作前缀后，不足3个可比较动作步。
+- 为缺少特征的43个候选起点编码86张RGB；冻结原生视觉编码器，无可训练参数；
+  原生预处理误差0，CUDA峰值约1.57GiB。
+- `report.json`、`negative_window_results.jsonl`、`pairs.jsonl`保存统计与追溯；
+  此输出不是完整prepared目录。计数不表示局部负行为已额外验证或任务成功率。
+
+本地完整CPU测试：75 passed in 10.50s，含新增的状态匹配／可训练配对分离、
+缺失图像特征拒绝、无数值候选安全返回0测试；未启动真实pair优化器更新。

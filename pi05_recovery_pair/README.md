@@ -234,7 +234,7 @@ python -m recovery_pair features --windows outputs/windows_v1/windows.jsonl \
 当前放宽门槛下，实际数值候选641组，视觉通过501组关系、115个直接匹配的CAP窗口；
 按后缀规则纳入14/20个原成功片段的后续部分，共1733个不重复原动作步、182个训练窗口。
 此前0.20／0.005下的27窗口／6片段结果是历史设置，保存在v1输出中。
-pairing使用更严格的初始值，尚未在全部负窗口上统计配对数量。
+pairing使用更严格的初始值；最新VLA-only完整统计见下文及VALIDATION.md。
 上述数量是覆盖统计，没有匹配准确率结论。原四类标签与匹配顺序保持不变，物体位置差异、
 人工画面复核标签不额外否决候选，不读取物体真值。已有试验与审计输出保留不变。
 
@@ -313,6 +313,33 @@ python -m recovery_pair.success_admission \
 success_matches.jsonl（直接匹配）、cap_success_suffixes.jsonl、coverage.jsonl和report.json。
 它们是可直接追溯原动作payload的训练窗口索引，不额外复制或转换原数据。
 尚未为全部负窗口和新正参考编码，不能把此成功入池输出作为完整prepared目录启动pair训练。
+
+### 统计VLA负片段的实际配对
+
+成功后缀入池完成后，可复用其冻结特征，仅为负匹配数值候选补齐缺失起点RGB特征：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 \
+python -m recovery_pair.negative_matching \
+  --windows /path/to/windows.jsonl --admission /path/to/success_admission \
+  --checkpoint /path/to/RLinf-Pi05-LIBERO-SFT \
+  --config configs/libero_pi05.json --output /path/to/new_negative_matches \
+  --device cuda:0 --max-cuda-memory-gb 8 --batch-size 2
+```
+
+`--admission`指向success_admission输出目录，需保留该报告引用的完整vision trial目录。
+先核对GPU空闲显存，使用相同的原生编码器和预处理；只有存在未编码数值候选才加载视觉模块。
+该命令不改变门槛、不训练，不使用人工画面复核结果否决候选。它检查原索引哈希和正池
+完全一致，并逐项核对候选特征完整性；缺失特征报错，不会误统计为未匹配。
+
+输出report.json、negative_window_results.jsonl、pairs.jsonl、matched_negative_windows.jsonl
+和完整windows_with_features.jsonl。报告区分数值候选、图像通过的起点匹配、动作检查后
+可训练的负窗口／原片段／完整episode数；一个负窗口有多条正参考时，负窗口和episode
+各只计一次。保留排除原因、实际动作mask及正参考来源。没有数值候选时也会正确报告0。
+输出本身不是完整prepared目录；如需后续训练，可另用完整带特征的窗口运行prepare／audit。
+
+A800实测：40个VLA负片段中21个通过数值及图像匹配，动作检查后15个可配对，
+对应15个父episode、21条正参考；训练／验证／测试分别12／2／1。详见VALIDATION.md。
 
 ## 训练、对照、多卡、恢复
 

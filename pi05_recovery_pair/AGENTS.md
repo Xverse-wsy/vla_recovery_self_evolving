@@ -44,6 +44,12 @@ CAP-X code, RLinf code or old training configs to run it.
   admitted CAP-success suffixes. Existing VLA-negative windows use valid action
   elements as the error mask unless finer evidence exists. Record this mask basis.
   Rebuild older prepared assets without this policy marker before training.
+- Complete real negative-count entry: python -m recovery_pair.negative_matching
+  --windows ... --admission ... --checkpoint ... --config ... --output ... .
+  Reuse verified success-admission features and encode only missing numeric-candidate
+  start RGB. Keep thresholds fixed; separately report state matches and action-valid
+  pairs, counting each original negative episode once. Do not treat missing features
+  as failed visual matches or claim a count-only output is a full prepared artifact.
 - Task progress and progress_scorer_id are optional provenance only. Do not gate
   coverage/pairing or rank candidates by them. Legacy progress thresholds are ignored.
 - NO privileged inputs for matching/calibration. Whitelist: original public task
