@@ -29,6 +29,9 @@ python -m recovery_pair prepare-positive-fm \
   --config configs/libero_pi05_positive_fm.json \
   --output /path/to/new_positive_fm_prepared
 python -m recovery_pair audit --prepared /path/to/new_positive_fm_prepared
+# 可选全量原数据对齐检查（CPU，无需加载模型）：
+python -m recovery_pair audit --prepared /path/to/new_positive_fm_prepared \
+  --source-norm-stats /path/to/original/norm_stats.json
 ```
 
 prepare仅CPU运行，无需重新匹配或编码图像。换服务器后先按后文命令在本机重建原库与
@@ -51,8 +54,10 @@ config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认�
 **不表示数据遍历50个epoch**；正式预算通过该字段设置。沿用验证早停及checkpoint规则。
 未授权启动正式训练。旧pair配置与数据保留，可独立做对照；新FM资产禁止用于pair模式。
 
-真实GPU短验证入口如下。它只执行两次FM全局batch更新，第一步保存checkpoint后重新加载
-原始基座并恢复第二步；按三类来源检查原生compute_loss一致性和梯度，对全部冻结参数
+真实GPU短验证入口如下。它先逐窗对照原Parquet检查观测／动作、归一化和片段边界，
+再执行两次FM全局batch更新，第一步保存checkpoint后重新加载原始基座并恢复第二步；
+另外从同一原始基座连续训练两步，要求与恢复路径的最终参数SHA256及逐步metrics完全一致。
+总计四次短验证更新；按三类来源检查原生compute_loss一致性和梯度，对全部冻结参数
 计算SHA256以确认未改变，训练参数必须改变。训练预算不会扩展为长训。
 
 ```bash
@@ -65,8 +70,29 @@ CUDA_VISIBLE_DEVICES=0 python -m recovery_pair.fm_validation \
 ```
 
 执行前检查显存及磁盘；入口要求显存上限之外至少4GiB空闲余量。输出包含status、
-完整report、两步metrics、原生采样一致性检查及可恢复checkpoint，不调用LIBERO或API。
+完整report、两条路径各两步metrics、原生采样一致性检查及可恢复checkpoint，不调用LIBERO或API。
 短验证用于证明流程可运行，不能据此声称已完成正式训练或任务成功率评测。
+
+GPU训练复核通过后，可独立检查文档中的导出命令和GPU重载：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m recovery_pair.export_validation \
+  --validation /path/to/completed_gpu_validation \
+  --output /path/to/new_export_validation --device cuda:0 --max-cuda-memory-gb 12
+```
+
+此检查调用同一个`python -m recovery_pair export`入口，在新目录写完整权重，然后按原
+RLinf接口重载到GPU；冻结与可训练参数都必须与已验证checkpoint精确一致，并检查原生
+采样动作形状与有限值。需要原始基座／norm／tokenizer资产和额外磁盘空间；不会做仿真。
+已有物化导出时可加`--existing-export /path/to/exported`复查同一文件；此时不重复导出，
+仍核对来源及最终全部参数哈希。
+
+完整权重重载须经过`checkpoint_io.restore_full_checkpoint_after_dtype_setup`。
+固定RLinf版本在加载后先把主干转BF16，再把部分层转回FP32，会舍入这些层已保存的FP32更新；
+适配层在最终dtype布局确定后重新载入full_weights，保留精确参数。safetensors基座仍沿用
+原始加载方式。本仓库根目录`evaluate.py`也应用该修正，并将加载策略写入run身份，
+旧加载策略的评测目录不能静默resume；应使用新输出目录。
+
 
 ## 已实现的行为
 
@@ -452,6 +478,7 @@ CUDA_VISIBLE_DEVICES=YOUR_FREE_GPU_LIST torchrun --standalone --nproc_per_node=N
 每个有可靠负配对的独立 episode 最多50次被选中；并非把正样本池重复50遍。
 无 pair 时使用显式 `fm_only_updates` 上限，仅训 FM。每50更新保存，默认保留最近3份。
 若有验证划分正数据，则每25更新用固定验证窗口/噪声检查，连续5次无改善停止。
+纯FM模式检查全部heldout正窗口各一次，不建梯度图；pair模式保留固定配对验证计划。
 这是 heldout 训练目标早停，LIBERO实际成功率仍需独立仿真评测。
 
 `--mode pull_only` 和 `--mode fm_only` 使用独立输出目录做两项消融。
@@ -459,6 +486,8 @@ CUDA_VISIBLE_DEVICES=YOUR_FREE_GPU_LIST torchrun --standalone --nproc_per_node=N
 用 `--resume outputs/continuous_v1/update_000001.pt` 在原输出目录显式恢复，
 同时保留相同 base/data/config/mode；允许改 microbatch 和GPU数量。
 checkpoint 含可训练参数、优化器、RNG和每个 episode 的复用计数；冻结参数来自原始 base。
+新checkpoint身份包含objective_version=native_fm_masked_window_mean_v1，防止把旧缓存FM
+前向产生的checkpoint静默当成当前目标继续训练；缺少此字段的旧checkpoint需另行明确迁移。
 
 训练检查点是增量文件，不直接伪装成完整基座。
 可在有足够 CPU 内存和磁盘时显式物化为原 RLinf 可读 full_weights.pt：

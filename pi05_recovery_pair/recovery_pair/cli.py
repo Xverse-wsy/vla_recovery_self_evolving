@@ -53,6 +53,7 @@ def main():
         p.add_argument('--'+arg,required=True)
     p=subs.add_parser('audit')
     p.add_argument('--prepared',required=True)
+    p.add_argument('--source-norm-stats',help='Also compare source-aware FM windows against original Parquet and normalization')
     p=subs.add_parser('smoke')
     p.add_argument('--output',required=True)
     p.add_argument('--updates',type=int,default=2)
@@ -125,6 +126,9 @@ def main():
     elif args.command=='audit':
         records,pairs,digest=audit_prepared(args.prepared)
         result=dict(windows=len(records),pairs=len(pairs),artifact_sha256=digest)
+        if args.source_norm_stats:
+            from .positive_fm import audit_source_alignment
+            result['source_alignment']=audit_source_alignment(records,args.source_norm_stats)
     elif args.command=='smoke':
         from .synthetic import smoke
         result=smoke(args.output,args.updates)

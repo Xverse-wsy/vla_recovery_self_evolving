@@ -102,6 +102,8 @@ def main():
                tasks=args.tasks, trials=args.trials, flow_steps=args.flow_steps, action_chunk=args.action_chunk,
                seed=args.seed, max_steps=args.max_steps, benchmark='standard_LIBERO',
                checkpoint_sha256=fingerprint(weights),
+               checkpoint_load_policy='restore_full_weights_after_dtype_v1' if resolve_full_weights(args.checkpoint)
+                   else 'pinned_safetensors_base_v1',
                wcm_enabled=False, capx_enabled=False, norm_sha256=fingerprint(norm),
                save_video=not args.no_video,
                scope='full2000' if args.suites == SUITES and args.tasks == list(range(10))
@@ -144,7 +146,10 @@ def main():
                         action_env_dim=7, action_horizon=10, action_chunk=args.action_chunk,
                         paligemma_variant='gemma_2b', action_expert_variant='gemma_300m',
                         max_token_len=200, discrete_state_input=False, torch_compile=False)))
-        policy = get_model(model_cfg).to('cuda:0').eval().requires_grad_(False)
+        policy = get_model(model_cfg)
+        from pi05_recovery_pair.recovery_pair.checkpoint_io import restore_full_checkpoint_after_dtype_setup
+        restore_full_checkpoint_after_dtype_setup(policy, run['checkpoint'])
+        policy = policy.to('cuda:0').eval().requires_grad_(False)
         assert policy.action_horizon == 10
         overlap = training_overlap(root, args.label)
         for suite in args.suites:

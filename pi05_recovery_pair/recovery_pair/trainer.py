@@ -13,6 +13,8 @@ from .features import sha256
 from .flow import differentiable_sample
 from .pipeline import audit_prepared
 
+OBJECTIVE_VERSION = 'native_fm_masked_window_mean_v1'
+
 
 def check_sampler(backend, loader, record, tolerance=2e-5, checkpoint_steps=False):
     """Use identical real model, start observation, noise, K and time grid."""
@@ -78,7 +80,8 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
     # Changing microbatch/world size is valid on resume; logical batches stay fixed.
     for k in ('fm_micro_batch','pair_micro_batch'):
         config_identity.pop(k)
-    identity = dict(base=base,prepared_sha256=digest,config=config_identity,mode=mode)
+    identity = dict(base=base,prepared_sha256=digest,config=config_identity,mode=mode,
+                    objective_version=OBJECTIVE_VERSION)
     start, best, bad = 0, float('inf'), 0
     if resume:
         state = torch.load(resume,map_location='cpu',weights_only=False)
@@ -91,25 +94,35 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
         optimizer.load_state_dict(state['optimizer'])
         sampler.load_state_dict(state['sampler'])
         start,best,bad = state['update'], state['best_validation'],state['bad_validations']
+        if sampler.updates != start:
+            raise ValueError('Checkpoint update and sampler position disagree')
         torch.set_rng_state(state['torch_rng'])
         np.random.set_state(state['numpy_rng'])
         random.setstate(state['python_rng'])
         if torch.cuda.is_available() and state.get('cuda_rng') is not None:
             # Current device only; supports changing number of ranks on resume.
             torch.cuda.set_rng_state(state['cuda_rng'])
-    validation = [r for r in records if r.split=='validation' and r.training_quality=='positive' and r.controller=='VLA']
+    validation = [r for r in records if r.split=='validation' and r.training_quality=='positive'
+                  and (mode=='fm_only' or r.controller=='VLA')]
     validation_plan = None
     if validation:
-        val_config = replace(config, max_episode_reuses=1)
-        val_sampler = EpisodeEventSampler(records,pairs,val_config,split='validation')
-        validation_plan = val_sampler.draw()  # fixed windows/reference/noise across checks
+        if mode == 'fm_only':
+            # Evaluate every heldout positive exactly once, without replacement.
+            heldout = sorted(r.sample_id for r in records
+                             if r.split == 'validation' and r.training_quality == 'positive')
+            validation_plan = dict(fm_ids=heldout, pairs=[])
+        else:
+            val_config = replace(config, max_episode_reuses=1)
+            val_sampler = EpisodeEventSampler(records,pairs,val_config,split='validation')
+            validation_plan = val_sampler.draw()
     # Automatically enforce real native-vs-differentiable parity before updating.
     report = check_sampler(backend,loader,next(r for r in records if r.split=='train' and r.training_quality=='positive'))
     if rank==0:
         (out/'sampler_audit.json').write_text(json.dumps(report,indent=2))
         (out/'run.json').write_text(json.dumps(dict(identity=identity,world_size=world,
             freeze_report=backend.freeze_report() if hasattr(backend,'freeze_report') else {'backend':'toy'},
-            no_positive_warmup=True,validation_enabled=bool(validation_plan)),indent=2))
+            no_positive_warmup=True,validation_enabled=bool(validation_plan),
+            validation_fm_windows=len(validation_plan['fm_ids']) if validation_plan else 0),indent=2))
     stop_reason='episode_budget_complete'
 
     def checkpoint(update):

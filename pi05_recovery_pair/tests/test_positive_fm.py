@@ -123,3 +123,22 @@ def test_positive_fm_rejects_unknown_sources_negative_records_and_corrupted_tail
     np.savez(r.action_path, **p)
     with pytest.raises(ValueError, match='repeat the last real action'):
         audit_positive_fm([r], [], replace(config, pair_batch=0, eta=0))
+
+
+def test_deep_audit_compares_original_parquet_and_rejects_shifted_observation(tmp_path):
+    from recovery_pair.synthetic import fixture
+    from recovery_pair.positive_fm import audit_source_alignment
+    config,records,_=fixture(tmp_path/'fixture')
+    out=tmp_path/'converted'
+    (out/'actions').mkdir(parents=True)
+    selected=[]
+    for r in records:
+        if r.controller=='code' and r.training_quality=='positive':
+            r.bank_label={'source_category':'capx_completed'}
+            selected.append(transform_window(r,out))
+    result=audit_source_alignment(selected,tmp_path/'fixture/norm_stats.json')
+    assert result['windows_checked']==len(selected) and result['max_real_action_error']==0
+    assert result['repeated_action_steps']>0
+    selected[0].image_refs['front']=dict(selected[0].image_refs['front'],row=1)
+    with pytest.raises(ValueError,match='misaligned'):
+        audit_source_alignment(selected,tmp_path/'fixture/norm_stats.json')

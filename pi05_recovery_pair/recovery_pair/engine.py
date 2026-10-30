@@ -5,6 +5,7 @@ Ranks without pair examples still participate with zero gradients. No DDP hooks
 are bypassed by the adapter's direct suffix calls.
 """
 import torch
+from contextlib import nullcontext
 from .flow import differentiable_sample, fm_prediction
 from .losses import eta_at_update, pair_loss_per_window
 
@@ -34,7 +35,17 @@ def fm_loss_elements(backend, observation, target, *, noise, time):
     return (prediction - velocity_target).square()
 
 
-def accumulate_update(backend, observation_loader, records, plan, config, *, update_index,
+def accumulate_update(backend, observation_loader, records, plan, config, *, backward=True, **kwargs):
+    # FM validation needs no graph. Pair validation still differentiably samples
+    # because its sampler explicitly requires grad mode; it never calls backward.
+    mode = kwargs.get('mode', 'continuous_pair')
+    context = torch.no_grad() if not backward and (mode == 'fm_only' or not plan['pairs']) else nullcontext()
+    with context:
+        return _accumulate_update(backend, observation_loader, records, plan, config,
+                                  backward=backward, **kwargs)
+
+
+def _accumulate_update(backend, observation_loader, records, plan, config, *, update_index,
                       total_updates, draws=None, mode='continuous_pair', backward=True):
     if mode not in ('continuous_pair', 'pull_only', 'fm_only'):
         raise ValueError('Unknown ablation mode')
@@ -52,7 +63,9 @@ def accumulate_update(backend, observation_loader, records, plan, config, *, upd
         fm_noise = torch.randn(n_fm, config.horizon, config.action_dim, generator=generator)
         pair_noise = torch.randn(n_pair, config.horizon, config.action_dim, generator=generator)
         with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(config.seed + 2000003 * update_index)
+            # Seed CPU only: torch.manual_seed also resets every CUDA generator,
+            # which fork_rng(devices=[]) would not restore.
+            torch.random.default_generator.manual_seed(config.seed + 2000003 * update_index)
             time = backend.sample_flow_time(n_fm, torch.device('cpu'))
         draws = dict(fm_noise=fm_noise, pair_noise=pair_noise, time=time)
     eta = eta_at_update(update_index, total_updates, config.eta, config.eta_warmup_fraction)

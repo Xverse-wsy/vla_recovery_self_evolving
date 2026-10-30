@@ -18,6 +18,12 @@ FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`D
 A800仅CPU准备和审计1007窗口完成，未启动正式训练；详见子目录入口和验证文档。
 随后已通过物理GPU0的两次真实FM64更新及基座重载/checkpoint恢复验证，峰值分配15.31GiB。
 FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训练或LIBERO成功率已验证。
+进一步GPU0全流程复核已验证连续训练与checkpoint恢复的最终参数/日志精确一致，
+以及1007个窗口的原Parquet对齐；纯FM heldout覆盖全部窗口且不建图，峰值分配12.51GiB。
+新checkpoint含objective_version，不能静默续用目标版本未标记的旧checkpoint。
+完整导出权重加载时，evaluate.py与新训练适配均在RLinf dtype布局完成后重新加载full_weights，
+避免FP32层更新被中间BF16转换舍入；safetensors基座路径不变。评测run含checkpoint_load_policy，
+禁止在旧策略输出目录静默resume，须用新输出目录。
 
 ## 实验定义
 

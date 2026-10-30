@@ -1,4 +1,4 @@
-"""Bounded real-GPU FM validation: native loss parity, two updates and reload/resume."""
+"""Bounded real-GPU FM review: source alignment, native loss, resume/continuous parity."""
 import argparse
 import gc
 import hashlib
@@ -16,7 +16,7 @@ from .flow import fm_prediction
 from .engine import fm_loss_elements
 from .openpi_backend import load_backend, ObservationLoader
 from .pipeline import audit_prepared
-from .positive_fm import POLICY, check_training_mode
+from .positive_fm import POLICY, check_training_mode, audit_source_alignment
 from .trainer import base_identity, train
 
 
@@ -79,6 +79,7 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         raise ValueError('This validation explicitly requires a real CUDA model')
     if config.fm_only_updates < 2:
         raise ValueError('Validation needs room for two updates')
+    source_audit = audit_source_alignment(records, norm_stats)
     out = Path(output).resolve()
     out.mkdir(parents=True, exist_ok=False)
     status = out / 'status.json'
@@ -131,31 +132,49 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         final_hash = parameter_hash(backend, True)
         if final_hash in (base_trainable, first_hash) or parameter_hash(backend, False) != frozen_before:
             raise RuntimeError('Resume did not update expert or modified frozen weights')
+        frozen_after_resume = parameter_hash(backend, False)
+        status.write_text(json.dumps({'state': 'checking_uninterrupted_equivalence'}))
+        del loader, backend
+        gc.collect()
+        torch.cuda.empty_cache()
+        backend = load_backend(checkpoint, norm_stats, config, device)
+        loader = ObservationLoader(backend)
+        continuous = train(backend, loader, prepared, config, out / 'uninterrupted', base=base,
+            mode='fm_only', max_updates=2, save_every=1, validate_every=1, keep_last=2)
+        if parameter_hash(backend, True) != final_hash:
+            raise RuntimeError('Resumed and uninterrupted two-update parameters differ')
+        if parameter_hash(backend, False) != frozen_after_resume:
+            raise RuntimeError('Uninterrupted run changed frozen parameters')
         metrics = [json.loads(x) for x in (out / 'run/metrics.jsonl').read_text().splitlines()]
         if ([m['update'] for m in metrics] != [1, 2] or second['updates'] != 2
                 or any(m['fm_count'] != config.fm_batch or m['pair_count'] or m['pair'] or m['eta']
                        or not np.isfinite(m['loss']) or not m['gradient_norm_before_clip'] > 0 for m in metrics)):
             raise RuntimeError('Invalid real FM update metrics')
         sampler = json.loads((out / 'run/sampler_audit.json').read_text())
+        continuous_metrics = [json.loads(x) for x in (out / 'uninterrupted/metrics.jsonl').read_text().splitlines()]
+        if continuous_metrics != metrics:
+            raise RuntimeError('Resumed and uninterrupted sampling/loss metrics differ')
         audit_prepared(prepared, config)
         if base_identity(checkpoint, norm_stats) != base:
             raise RuntimeError('Original base checkpoint changed')
-        result = dict(state='complete', real_model=True, optimizer_updates=2,
+        result = dict(state='complete', real_model=True, optimizer_updates=4,
             cuda_visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'), device=device,
             prepared_sha256=digest, prepared=str(Path(prepared).resolve()),
             base=base, config=config.to_dict(), native_fm_probes=probes, metrics=metrics,
             sampler_audit=sampler, freeze_report=frozen_report,
             frozen_weights_unchanged=True, trainable_weights_changed=True,
             fresh_base_reload_verified=True, checkpoint_resume_verified=True,
+            uninterrupted_equivalence_verified=True, source_alignment_audit=source_audit,
+            validation_fm_windows=json.loads((out/'run/run.json').read_text())['validation_fm_windows'],
             original_base_unchanged=True, prepared_audit_after_passed=True,
             frozen_sha256=frozen_before, base_trainable_sha256=base_trainable,
             first_trainable_sha256=first_hash, final_trainable_sha256=final_hash,
             cuda_cap_gib=memory_gib, cuda_peak_allocated_gib=torch.cuda.max_memory_allocated()/1024**3,
             cuda_peak_reserved_gib=torch.cuda.max_memory_reserved()/1024**3,
             elapsed_seconds=time.monotonic()-started,
-            scope='Two actual FM64 optimizer updates and reload/resume; no long training, LIBERO evaluation or API.')
+            scope='Two resumed and two uninterrupted FM64 updates with exact final-weight/metric equivalence; no long training, LIBERO evaluation or API.')
         (out / 'report.json').write_text(json.dumps(result, indent=2))
-        status.write_text(json.dumps({'state': 'complete', 'optimizer_updates': 2}))
+        status.write_text(json.dumps({'state': 'complete', 'optimizer_updates': 4}))
         return result
     except Exception as exc:
         status.write_text(json.dumps({'state': 'failed', 'error': str(exc)}))

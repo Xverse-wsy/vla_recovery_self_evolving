@@ -1,4 +1,5 @@
 import copy
+import json
 from dataclasses import replace
 import numpy as np
 import pytest
@@ -68,6 +69,51 @@ def test_native_fm_hook_is_used_instead_of_cached_sampler_and_receives_gradients
     assert model.weight.grad.item()==pytest.approx(-1.)
 
 
+def test_fm_validation_disables_grad_and_does_not_modify_existing_gradients(window,config):
+    class ValidationOnly(ToyFlow):
+        def velocity(self,*args,**kwargs):
+            assert not torch.is_grad_enabled()
+            return super().velocity(*args,**kwargs)
+    model=ValidationOnly()
+    records=[window('heldout')]
+    config=replace(config,pair_batch=0,eta=0,fm_batch=2)
+    plan=EpisodeEventSampler(records,[],config).draw()
+    metrics=accumulate_update(model,loader,records,plan,config,update_index=0,
+                              total_updates=1,mode='fm_only',backward=False)
+    assert np.isfinite(metrics['loss'])
+    assert all(p.grad is None for p in model.parameters())
+
+
+def test_resume_matches_uninterrupted_training_exactly_and_checks_objective_version(tmp_path):
+    config,records,_=fixture(tmp_path/'fixture')
+    config=replace(config,pair_batch=0,eta=0,fm_batch=8,fm_only_updates=2)
+    torch.manual_seed(17)
+    initial=ToyFlow()
+    uninterrupted=copy.deepcopy(initial)
+    interrupted=copy.deepcopy(initial)
+    train(uninterrupted,loader,tmp_path/'fixture/prepared',config,tmp_path/'full',
+          mode='fm_only',max_updates=2,save_every=1,validate_every=1)
+    train(interrupted,loader,tmp_path/'fixture/prepared',config,tmp_path/'split',
+          mode='fm_only',max_updates=1,save_every=1,validate_every=1)
+    restored=copy.deepcopy(initial)
+    train(restored,loader,tmp_path/'fixture/prepared',config,tmp_path/'split',
+          mode='fm_only',max_updates=2,save_every=1,validate_every=1,
+          resume=tmp_path/'split/update_000001.pt')
+    for a,b in zip(uninterrupted.parameters(),restored.parameters()):
+        torch.testing.assert_close(a,b,atol=0,rtol=0)
+    meta=json.loads((tmp_path/'full/run.json').read_text())
+    from recovery_pair.pipeline import audit_prepared
+    pool,_,_=audit_prepared(tmp_path/'fixture/prepared',config)
+    assert meta['validation_fm_windows']==sum(r.split=='validation' and
+        r.training_quality=='positive' for r in pool)
+    checkpoint=torch.load(tmp_path/'split/update_000001.pt',weights_only=False)
+    checkpoint['identity'].pop('objective_version')
+    torch.save(checkpoint,tmp_path/'old_objective.pt')
+    with pytest.raises(ValueError,match='Resume base/data/config/mode differs'):
+        train(copy.deepcopy(initial),loader,tmp_path/'fixture/prepared',config,tmp_path/'split',
+              mode='fm_only',resume=tmp_path/'old_objective.pt')
+
+
 def test_invalid_recorded_fm_targets_cannot_change_prediction_or_loss(window,config):
     r=window('p0')
     config=replace(config,fm_batch=8,pair_batch=0)
@@ -115,6 +161,19 @@ def test_end_to_end_training_checkpoint_resume_and_fixed_validation(tmp_path):
     checkpoint=torch.load(tmp_path/'run/update_000002.pt',weights_only=False)
     assert all('frozen_prefix' not in key for key in checkpoint['trainable'])
     assert checkpoint['sampler']['updates']==2
+
+
+def test_fm_early_stop_and_checkpoint_retention_are_bounded(tmp_path,monkeypatch):
+    config,_,_=fixture(tmp_path/'fixture')
+    config=replace(config,pair_batch=0,eta=0,fm_batch=4,fm_only_updates=10)
+    import recovery_pair.trainer as runtime
+    monkeypatch.setattr(runtime,'accumulate_update',lambda *args,**kwargs: {'loss':1.0})
+    result=train(ToyFlow(),loader,tmp_path/'fixture/prepared',config,tmp_path/'run',
+                mode='fm_only',save_every=1,validate_every=1,patience=2,keep_last=2)
+    assert result['reason']=='validation_early_stop' and result['updates']==3
+    assert all(n==0 for n in result['episode_visits'].values())
+    assert sorted(p.name for p in (tmp_path/'run').glob('update_*.pt'))==[
+        'update_000002.pt','update_000003.pt']
 
 
 def _distributed_worker(rank, rendezvous, output, records, plan, config, weights):

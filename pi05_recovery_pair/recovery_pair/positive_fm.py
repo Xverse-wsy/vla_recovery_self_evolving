@@ -89,6 +89,58 @@ def check_training_mode(prepared, mode):
         raise ValueError('Source-aware positive artifact must use --mode fm_only')
 
 
+def audit_source_alignment(records, norm_stats):
+    """Deep read-only audit against original segment Parquet, not copied NPZ alone."""
+    import pyarrow.parquet as pq
+    from .data import QuantileAssets
+    assets = QuantileAssets(norm_stats)
+    tables, original_hashes = {}, {}
+    seen = set()
+    repeated, max_action_error = 0, 0.
+    for r in records:
+        if r.sample_id in seen:
+            raise ValueError('Duplicate FM window')
+        seen.add(r.sample_id)
+        if r.spec.normalization_sha256 != assets.sha:
+            raise ValueError('Source alignment normalization mismatch')
+        p, n = r.payload(), r.source['fm_real_steps']
+        front, wrist = r.image_refs['front'], r.image_refs['wrist']
+        if not isinstance(front, dict) or not isinstance(wrist, dict):
+            raise ValueError('Deep source alignment requires segment Parquet image references')
+        path, row = front['parquet'], int(front['row'])
+        if (wrist['parquet'] != path or int(wrist['row']) != row
+                or front.get('column') != 'image' or wrist.get('column') != 'wrist_image'
+                or r.source['segment_row'] != row or r.source['action_range'] != [row, row+n]):
+            raise ValueError('Starting observations and action range are misaligned')
+        if path not in tables:
+            table = pq.read_table(path, columns=['state', 'actions'])
+            tables[path] = (np.asarray(table['state'].to_pylist(), np.float32),
+                            np.asarray(table['actions'].to_pylist(), np.float32))
+        state, raw = tables[path]
+        if row < 0 or row+n > len(raw) or raw.shape[1] != 7:
+            raise ValueError('FM window crosses the original segment boundary')
+        if r.source['fm_tail_mode'] == 'repeat_last' and n < r.spec.horizon and row+n != len(raw):
+            raise ValueError('Repeated actions must begin only at original successful segment end')
+        if not np.array_equal(np.asarray(r.proprio, np.float32), state[row]):
+            raise ValueError('FM state is not the original pre-action observation')
+        normalized = assets.normalize('actions', raw[row:row+n])
+        error = float(np.max(np.abs(normalized-p['actions'][:n, :7])))
+        max_action_error = max(max_action_error, error)
+        if error > 2e-6 or not np.allclose(assets.normalize('state', state[row]),
+                                          r.standardized_proprio, atol=2e-6, rtol=0):
+            raise ValueError('FM real actions/state differ from original normalization')
+        original = r.source['original_action_path']
+        if original not in original_hashes:
+            original_hashes[original] = sha256(original)
+        if original_hashes[original] != r.source['original_action_sha256']:
+            raise ValueError('Original matched action payload changed')
+        repeated += r.source['fm_repeated_steps']
+    return dict(windows_checked=len(records), original_parquets=len(tables),
+        original_action_payloads_checked=len(original_hashes), max_real_action_error=max_action_error,
+        repeated_action_steps=repeated, observation_action_alignment=True,
+        original_segment_boundaries_respected=True, normalization_sha256=assets.sha)
+
+
 def prepare_positive_fm(admission, config, output):
     config.validate()
     if config.pair_batch != 0 or config.eta != 0:

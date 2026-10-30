@@ -407,3 +407,69 @@ PyTorch allocator上限20GiB，入口要求另保留4GiB余量，未kill任何�
 - 完整CPU回归81 passed in10.92s，新增测试确保真实FM走原生hook且masked梯度权重正确。
 
 本次仅两次更新和短验证，不是100次正式训练或50epoch实验；未运行LIBERO评测或API。
+
+## 全流程复核与补强（2026-10-31）
+
+本轮检查当前纯FM的准备、来源边界、mask、原生loss、采样、更新、验证、保存和恢复。
+修正／补强内容：
+
+- 纯FM的backward=False验证使用no_grad，避免不必要的梯度图；pair验证保留原采样要求。
+- 时间采样只设置CPU默认生成器；原torch.manual_seed会额外重置CUDA RNG，而
+  fork_rng(devices=[])不会恢复它。保持原Beta分布及同一update的CPU抽样值。
+- 纯FM验证覆盖全部heldout正窗口各一次，本批为91窗口，不再只检查随机有放回batch。
+- checkpoint新增objective_version=native_fm_masked_window_mean_v1，拒绝把更早的
+  缓存FM训练checkpoint静默续到当前目标；另核对sampler位置与update一致。
+- 新增可选CPU审计audit --source-norm-stats：逐窗对照原Parquet的执行前state、前视／
+  腕部列及row、动作区间与归一化资产；成功重复动作只能起于原段末尾，并核对原payload SHA。
+
+A800重新准备输出`outputs/positive_fm_full_review_prepared_20261031_v1/`完成，1007窗口、
+36个中途VLA短尾舍弃、34个成功尾部补齐185步；train828、validation91、test88。
+全量对照74个原控制段Parquet及1007个原payload，真实动作最大误差0，执行前状态、
+两路图像起点及片段边界均通过。与GPU使用的此前prepared逐条比较，除了输出payload路径，
+全部metadata及所有actions/valid_mask/trusted_error_mask/real_action_mask数组完全相同。
+证据`outputs/positive_fm_rebuild_equivalence_20261031_v1.json`。
+
+CPU完整回归85 passed in12.07s，覆盖恢复与连续训练精确一致、目标版本拒绝、
+完整验证窗口计数、验证不建图、早停、checkpoint保留数量及原数据错位拒绝。
+
+GPU0完整复核输出`outputs/positive_fm_full_review_20261031_v2/`已完成：
+
+- 初次v1在分配模型前因GPU0被其他新进程占用、20GiB上限＋4GiB余量不足而保护退出。
+  根据上一轮实测下调上限至17GiB，启动时free21.1796GiB通过检查；未停止其他进程。
+- 原始RLinf few-shot基座、FM64/micro1、lr1e-5、clip1、pair0、eta0，共4次真实更新：
+  2次组成保存／基座重载／恢复路径，另2次组成从原始基座连续训练的对照路径。
+- 两条路径最终全部可训练参数SHA256精确一致，逐步metrics也完全一致；
+  全部冻结参数SHA256不变，原始基座和norm资产不变。
+- 两步训练loss0.1126480679、0.0844845582；梯度范数0.4539046884、0.6265266538。
+  全部91个heldout窗口各检查一次，loss0.0440568280、0.0436320991；
+  与旧随机batch验证指标不直接比较，不据此声称LIBERO成功率提升。
+- 三类来源的原生compute_loss一致性最大差0，梯度有限且非零；
+  原生与可微sampler前向差0、K3全部步骤梯度检查通过。
+- 峰值allocated12.51154GiB、reserved12.89258GiB；共享GPU环境下耗时约650秒。
+- 训练前后prepared完整审计通过，source alignment全部1007窗口通过。
+- 仅4次短验证更新，未启动100更新正式训练、50epoch实验、LIBERO仿真或API调用。
+
+
+## 完整权重导出／GPU重载精度复核（2026-10-31）
+
+实际执行文档中的`python -m recovery_pair export`，生成6,946,567,178字节的
+full_weights.pt。第一次GPU重载发现参数哈希不一致，定位为上游先加载权重、再将主干转BF16、
+最后将norm等层转回FP32，丢掉了这些FP32层已训练出的细微更新；并非导出文件缺少参数。
+
+新增checkpoint_io.restore_full_checkpoint_after_dtype_setup，在上游完成dtype布局后，
+用原生load_full_weights重新加载完整权重。训练适配与仓库根evaluate.py均采用此处理，
+不改RLinf源码或原权重，safetensors few-shot基座加载路径不变。评测身份加入加载策略版本，
+旧评测输出需另开目录，不能静默混用。CPU新增回归模拟BF16舍入并验证FP32精确恢复。
+
+GPU0复测输出`outputs/positive_fm_export_review_20261031_v2/`已完成，复用第一次实际export
+命令生成的文件，不重复物化；其报告documented_export_cli_passed=false仅表示本次跳过导出，
+existing_documented_export_reused=true，不表示导出命令失败。
+
+- 来源base/prepared/mode核对通过；全部可训练与冻结参数哈希均与训练完成时精确一致。
+- 原生部署sampler输出[1,10,32]，全部有限；原始基座哈希不变。
+- GPU峰值allocated6.63675GiB、reserved6.71484GiB；上限12GiB，额外留4GiB余量。
+- 该screen正常完成退出。没有启动LIBERO仿真、付费API或正式训练，没有kill其他进程。
+- 完整CPU回归87项通过；另根validate_parallel.py检查2000条评测在1/2/3/16/64/2048
+  分片下无重复遗漏，并拒绝不完整／配置不一致结果；此分片检查不使用GPU或真实仿真。
+- 已检查Python语法及评测helper导入。验证记录证明当前机器上的短流程，不等于新机器环境
+  安装验证、长训稳定性或实际任务成功率保证。

@@ -16,12 +16,23 @@ CAP-X code, RLinf code or old training configs to run it.
   the old matching libraries/payloads. fm_only_updates is an explicit update budget
   (default100), not 50 dataset epochs. No formal training was authorized here.
   User subsequently authorized a bounded real GPU0 validation and pushing after it
-  passes: python -m recovery_pair.fm_validation. It runs exactly two FM updates,
-  fresh-base checkpoint reload/resume and native loss/gradient/frozen-weight audits.
+  passes: python -m recovery_pair.fm_validation. Latest review runs two resumed
+  and two uninterrupted FM updates and requires EXACT final-weight/metric parity,
+  plus source-Parquet alignment and native loss/gradient/frozen-weight audits.
   Check free GPU memory; keep the allocator cap plus4GiB margin. This is not long training.
   Real-model FM MUST call policy.compute_loss with explicit native noise/time;
   do not substitute cached-prefix forward for native joint prefix/suffix SFT.
   The engine masks/reduces returned element losses. Keep the cache for sampling.
+  Pure-FM heldout evaluation visits all positive validation windows once without
+  autograd. Draw CPU flow time with the CPU generator only, never reset CUDA RNG.
+  Checkpoint objective_version rejects silent resume of earlier cached-FM runs.
+  Optional export_validation calls the actual documented export CLI, reloads its
+  full_weights via the pinned RLinf loader on GPU and verifies exact frozen/expert
+  parameters and finite native inference. It writes a NEW output, never base weights.
+  Keep checkpoint_io.restore_full_checkpoint_after_dtype_setup in backend AND root
+  evaluate.py: upstream's initial full-model bf16 cast otherwise rounds trained fp32
+  islands before recasting them to fp32. Safetensors base path remains unchanged.
+  Evaluation identity includes checkpoint_load_policy; do not mix older eval outputs.
 
 - User's current experiment uses the EXISTING four segment classes as training
   labels. Do not require another local-action review to use them. Preserve their

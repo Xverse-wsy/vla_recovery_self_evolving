@@ -91,7 +91,10 @@ def load_backend(checkpoint, norm_stats, config, device='cpu'):
                     action_env_dim=7, action_horizon=config.horizon, action_chunk=config.horizon,
                     paligemma_variant='gemma_2b', action_expert_variant='gemma_300m',
                     max_token_len=200, discrete_state_input=False, torch_compile=False, use_rlt=False)))
-    policy = get_model(model_config).to(device)
+    policy = get_model(model_config)
+    from .checkpoint_io import restore_full_checkpoint_after_dtype_setup
+    restore_full_checkpoint_after_dtype_setup(policy, checkpoint)
+    policy = policy.to(device)
     if (policy.action_horizon, policy.action_dim) != (config.horizon, config.action_dim):
         raise ValueError('Checkpoint model shape disagrees with window specification')
     backend=OpenPiBackend(policy, config.flow_steps)
