@@ -45,7 +45,8 @@ def test_suffix_uses_earliest_match_admits_unmatched_tail_and_no_other_program(w
     assert matcher.coverage['later_match']['directly_matched'] is True
     # An admitted tail near another CAP never extends that other program.
     assert different_program not in matcher.positive
-    assert failed_program in matcher.negative
+    assert failed_program not in matcher.negative
+    assert failed_program in matcher.excluded_negative
 
 
 def test_suffix_rejects_missing_actions_between_windows(window, config):

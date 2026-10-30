@@ -302,3 +302,30 @@ success-only输出与完整prepared明确区分；未声称已统计全部负配
 40个Python文件通过语法解析，2个Bash脚本通过 `bash -n`；不含GPU／真实训练／仿真／API。
 代码和文档收录于训练仓库独立子目录，根目录AGENTS／README提供接手链接；
 环境、outputs、数据、模型、特征缓存和私有凭据不纳入提交。
+
+## 负查询仅使用VLA失败片段（最新修正）
+
+用户随后明确要求仅用VLA自主执行失败片段匹配。新增
+negative_query_policy=vla_failure_only_v1：matcher只以controller=VLA且原负类标签的
+窗口查询正池。CAP失败保留在四类原库／all_windows中，排除在eligible负库、负查询、
+training_pool与pair采样外；正参考仍为VLA成功窗口＋已纳入的CAP成功后缀。
+成功后缀规则与所有距离门槛均保持原值。
+
+prepared报告及pair记录标注策略；训练前审计拒绝旧的未标注资产和CAP负查询，采样器也
+会拒绝CAP失败pair。旧prepared需用当前规则重新prepare，旧原数据不改写。
+excluded_negative_windows.jsonl单独记录被排除的CAP失败窗口来源。
+
+2026-10-30 A800仅CPU只读核对原v3窗口：VLA负40窗口／40原片段／40个parent episode，
+CAP负11796窗口排除在本轮查询范围。VLA负窗口中39个各含8步有效动作、1个仅含1步；
+该1步窗口不满足当前pair至少3步的要求。39只是动作长度满足初始条件的数量，
+尚未计算数值／视觉及最终动作mask筛选后的可靠配对数量，不代表39组成功配对。
+
+新增4项负查询策略测试通过；相关匹配／后缀／配置／建库共47项CPU测试通过。
+验证了CAP失败完全相同起点也不进入查询、CAP成功仍可作为正参考、原分类与全部来源
+保留、prepared及sampler排除CAP失败、CAP失败为唯一负源时FM-only可用，以及旧策略
+prepared必须重建。不启用GPU、真实训练、仿真或API。
+
+完整CPU回归为**72 passed in 10.60s**。A800复用已有视觉缓存运行success_admission
+完成，输出 `outputs/vla_negative_only_20261030_v1/report.json`：负查询40、排除CAP负11796；
+原正池保持861个VLA＋182个CAP窗口（14个成功后缀、1733动作），源索引SHA未变。
+这是CPU策略及正池一致性核验，negative_pairing_evaluated=false，未执行完整负配对统计。

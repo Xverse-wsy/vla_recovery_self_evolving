@@ -32,9 +32,13 @@
     "test": 0
   },
   "source_windows_sha256": "bab907ae07282f068a9da56ac550dab2e4dd1427074da1b29be595861fdcf926",
-  "pairing_status": "not_evaluated_on_all_negative_windows",
+  "pairing_status": "not_evaluated_on_all_vla_negative_windows",
   "matching_accuracy": null,
   "training_started": false,
   "evidence_directory": "outputs/success_suffix_run_20261030_v2",
-  "basis": "User-requested wider admission and complete successful-program suffix; not accuracy-calibrated."
+  "basis": "User-requested wider admission and complete successful-program suffix; not accuracy-calibrated.",
+  "negative_query_policy": "vla_failure_only_v1",
+  "negative_query_controllers": [
+    "VLA"
+  ]
 }

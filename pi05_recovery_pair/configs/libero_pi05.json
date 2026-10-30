@@ -26,6 +26,7 @@
   "conservative_task_split": true,
   "matching_policy": "cap_success_to_vla_success_v1",
   "cap_success_admission": "segment_suffix",
+  "negative_query_policy": "vla_failure_only_v1",
   "split_fractions": [
     0.8,
     0.1,

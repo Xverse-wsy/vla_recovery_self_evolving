@@ -8,6 +8,7 @@ from .splits import audit_split
 from .schema import stable_id
 
 OBSERVATION_POLICY = 'policy_inputs_only_v1'
+NEGATIVE_QUERY_POLICY = 'vla_failure_only_v1'
 
 
 def instruction_key(record):
@@ -145,8 +146,11 @@ class FrozenMatcher:
                 self.rejections.append(dict(sample_id=r.sample_id,
                     reason='code_success_outside_matched_suffix' if config.cap_success_admission == 'segment_suffix'
                            else 'code_success_no_vla_success_match'))
-        # Stage 2: keep both failure classes as labeled queries for strict pairing.
-        self.negative = [r for r in records if r.training_quality == 'negative']
+        # Stage 2: only autonomous VLA failures query the positive reference pool.
+        # CAP failures retain their original labels in source banks, but do not
+        # enter matching, the eligible training pool, or the pair sampler.
+        self.negative = [r for r in records if r.controller == 'VLA' and r.training_quality == 'negative']
+        self.excluded_negative = [r for r in records if r.controller == 'code' and r.training_quality == 'negative']
 
     def _admit_success_suffixes(self, code_positive, direct):
         groups = defaultdict(list)
@@ -249,6 +253,7 @@ class FrozenMatcher:
             if chosen:
                 output.append(dict(pair_id=stable_id(neg.sample_id, [x['sample_id'] for x in chosen]),
                     negative_id=neg.sample_id, negative_episode_id=neg.episode_id,
+                    negative_controller=neg.controller, negative_query_policy=NEGATIVE_QUERY_POLICY,
                     event_id=neg.event_id, split=neg.split, references=chosen,
                     negative_evidence=neg.quality_evidence,
                     negative_label_basis=neg.label_basis, negative_bank_label=neg.bank_label,

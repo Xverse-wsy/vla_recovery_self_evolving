@@ -13,7 +13,7 @@ RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)�
 | 窗口 | 控制权、程序段、标签改变、episode 边界截断；补齐无效；执行前图像和状态 |
 | 成功筛选 | CAP 成功片段有窗口匹配冻结 VLA 成功库后，从最早匹配点纳入到同一片段结束 |
 | 匹配 | 只用部署输入：公开任务指令、本体观测、前视／腕部RGB；数值筛选→最多50候选→图像比较 |
-| 配对 | 每负窗口≤3条真实正参考，优先不同 episode；保存 mask、距离、门槛、起点及来源 |
+| 配对 | 仅VLA失败窗口查询正池，每负窗口≤3条真实正参考，优先不同 episode；保留完整来源 |
 | FM | 正样本自己的起点及真实动作；保留原 Beta(1.5,1)×.999+.001 时间采样 |
 | pair | 负样本起点、纯新噪声、完整 K 步可微 Euler；无 hinge，无 detach |
 | 采样 | episode→event→负窗口→正参考；每更新每负 episode 一票；最多50次复用 |
@@ -118,7 +118,9 @@ python -m recovery_pair manifest \
 
 按用户最新实验定义，以上四类直接作为训练标签：VLA 正常／自主成功、VLA 到达错误状态、
 CAP 恢复成功、CAP 恢复失败。`training_quality` 从 `bank_class` 读取正负，
-不再因旧 `local_quality=unknown` 而排除。来源仍如实记为原 WCM／程序完成分类，
+不再因旧 `local_quality=unknown` 而排除。四类来源库均保留；当前负匹配仅使用
+`D_vla_negative`，`D_code_negative`不进入负查询或pair训练池。
+来源仍如实记为原 WCM／程序完成分类，
 不伪造逐动作复核标志。有单独的细粒度标签时保留其证据，矛盾标签报错。
 按 [DATA_CONTRACT.md](DATA_CONTRACT.md) 使用已有起点图像与state8；不要求补持物／接触等标注。
 
@@ -261,8 +263,13 @@ python -m recovery_pair audit --prepared outputs/prepared_v1
 
 匹配顺序固定：①原 VLA 正片段作为冻结参考；②CAP 成功窗口按起点匹配该库，从每个成功
 代码片段最早匹配点纳入到该原片段结束；
-③VLA 错误和 CAP 失败窗口在正池中寻找严格正参考。接受的 CAP 不能反过来放行别的 CAP。
-失败窗口不执行第一步的成功入池匹配；未找到可靠正参考的负窗口保留，但不做负训练。
+③仅VLA错误窗口在正池中寻找严格正参考，配置为negative_query_policy=vla_failure_only_v1。
+正参考仍包含VLA成功和已纳入的CAP成功后缀；接受的CAP不能反过来放行别的CAP。
+CAP失败片段保留在原四类库及all_windows.jsonl，不进入负匹配或pair训练；
+excluded_negative_windows.jsonl记录排除来源，eligible_banks中的D_code_negative为空。
+未找到可靠正参考的VLA负窗口保留，但不做负训练。负窗口保持逐窗匹配，不扩展整段后缀。
+prepared报告与pair记录保存负查询策略，训练审计及采样器拒绝CAP失败查询；旧prepared
+缺少该策略标志时需重新prepare，不能直接续用。
 
 输出所有窗口、VLA 状态清单、`frozen_vla_success.jsonl`、成功匹配与最终配对、统计和校验和。
 `success_matches.jsonl` 保存每条 CAP→VLA 成功匹配的起点、距离、门槛、标签来源；

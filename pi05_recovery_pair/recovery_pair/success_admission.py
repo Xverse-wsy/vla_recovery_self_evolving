@@ -82,6 +82,8 @@ def admit_success(windows, feature_trial, config, output):
         if sha256(source) != digest:
             raise RuntimeError('Original source window index changed')
         report = dict(state='complete', observation_policy=OBSERVATION_POLICY,
+            negative_query_policy=config.negative_query_policy,
+            negative_query_windows=len(matcher.negative), excluded_cap_negative_windows=len(matcher.excluded_negative),
             cap_success_admission=config.cap_success_admission, coverage=config.to_dict()['coverage'],
             numerical_candidates_checked=checked,
             direct_match_relations=sum(r['candidate_count'] for r in matcher.success_matches),

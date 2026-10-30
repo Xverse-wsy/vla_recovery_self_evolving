@@ -15,6 +15,9 @@ class EpisodeEventSampler:
         self.by_episode = defaultdict(lambda: defaultdict(list))
         for pair in pairs:
             if pair['split'] == split:
+                negative = self.records.get(pair['negative_id'])
+                if negative is None or negative.controller != 'VLA' or negative.training_quality != 'negative':
+                    raise ValueError('Pair sampler accepts VLA failure queries only')
                 self.by_episode[pair['negative_episode_id']][pair['event_id']].append(pair)
         self.visits = {episode: 0 for episode in self.by_episode}
         self.updates = 0

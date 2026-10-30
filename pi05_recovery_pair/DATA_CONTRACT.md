@@ -17,6 +17,10 @@ local_quality 与旧可信 mask 保留为可选细粒度证据，不伪造逐动
 负类片段没有额外细粒度标签时，以窗口有效动作作为 pair 错误范围；如有显式负动作证据，
 使用其可信 mask。最终 pair mask 仍与正负有效 mask 相交并移除填充和共享前缀。
 每个 pair 记录 negative_label_basis、negative_bank_label、error_mask_basis。
+当前negative_query_policy=vla_failure_only_v1：负匹配查询仅取D_vla_negative。
+D_code_negative的原分类与轨迹均保留，但不进入负查询、可用负训练池或pair采样。
+正参考仍为VLA正窗口＋已纳入的CAP成功后缀。已有WCM错误片段直接作为本轮VLA负类，
+不另按整条parent最终成败重新筛选，也不自动将一个匹配窗口的后续负片段整段纳入。
 CAP 正窗口先对原 VLA 正库做起点匹配。当前preset的cap_success_admission=segment_suffix：
 同一成功代码片段有任意窗口匹配后，从最早匹配窗口起点到该原片段结束的连续动作全部纳入。
 前缀不纳入，不跨越原程序／episode／split／标签边界，也不扩展到失败程序。

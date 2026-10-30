@@ -42,6 +42,7 @@ class Config:
     conservative_task_split: bool = True
     matching_policy: str = 'cap_success_to_vla_success_v1'
     cap_success_admission: str = 'matched_window'
+    negative_query_policy: str = 'vla_failure_only_v1'
     split_fractions: tuple = (0.8, 0.1, 0.1)
     coverage: MatchThresholds = field(default_factory=MatchThresholds)
     pairing: MatchThresholds = field(default_factory=lambda: MatchThresholds(
@@ -52,6 +53,8 @@ class Config:
             raise ValueError('Unsupported matching policy')
         if self.cap_success_admission not in ('matched_window', 'segment_suffix'):
             raise ValueError('Unsupported CAP success admission policy')
+        if self.negative_query_policy != 'vla_failure_only_v1':
+            raise ValueError('Negative matching queries must use VLA failures only')
         for key in ('learning_rate','gradient_clip','lambda_push','eta','eta_warmup_fraction','vla_fraction',
                     'identical_action_tolerance','shared_prefix_tolerance'):
             if not math.isfinite(getattr(self,key)):

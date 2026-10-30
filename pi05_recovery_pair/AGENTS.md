@@ -37,9 +37,13 @@ CAP-X code, RLinf code or old training configs to run it.
   python -m recovery_pair.success_admission. Check complete numeric candidate
   feature coverage before matching; missing features must not silently reject a
   candidate. Success-only outputs do not claim full negative pairing is prepared.
-- Keep VLA-error and CAP-failure windows as negative queries for subsequent strict
-  pairing. Existing negative-class windows use valid action elements as the error
-  mask unless explicit finer negative evidence exists. Record this mask basis.
+- Latest negative_query_policy=vla_failure_only_v1: ONLY VLA-error windows query
+  the positive pool for strict pairing. CAP-failure segments keep their original
+  labels in source libraries, but are excluded from the eligible negative pool,
+  matching and pair training. Positive references still include VLA positives plus
+  admitted CAP-success suffixes. Existing VLA-negative windows use valid action
+  elements as the error mask unless finer evidence exists. Record this mask basis.
+  Rebuild older prepared assets without this policy marker before training.
 - Task progress and progress_scorer_id are optional provenance only. Do not gate
   coverage/pairing or rank candidates by them. Legacy progress thresholds are ignored.
 - NO privileged inputs for matching/calibration. Whitelist: original public task

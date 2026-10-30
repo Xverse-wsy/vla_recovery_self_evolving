@@ -8,7 +8,7 @@ from .config import MatchThresholds
 from .data import read_jsonl, write_jsonl
 from .schema import load_windows, save_windows, stable_id
 from .features import sha256
-from .matching import FrozenMatcher, image_distance, numeric_match, pair_mask, OBSERVATION_POLICY
+from .matching import FrozenMatcher, image_distance, numeric_match, pair_mask, OBSERVATION_POLICY, NEGATIVE_QUERY_POLICY
 from .splits import audit_split
 
 
@@ -21,6 +21,9 @@ def prepare(records, config, output):
     save_windows(out / 'all_windows.jsonl', records)
     save_windows(out / 'training_pool.jsonl', [r for r in records if r.sample_id in accepted])
     write_jsonl(out / 'pairs.jsonl', pairs)
+    write_jsonl(out / 'excluded_negative_windows.jsonl', [dict(sample_id=r.sample_id,
+        episode_id=r.episode_id, controller=r.controller, bank_class=r.bank_class,
+        reason='cap_failure_excluded_from_negative_matching') for r in matcher.excluded_negative])
     write_jsonl(out / 'coverage.jsonl', [dict(sample_id=k, **v) for k, v in matcher.coverage.items()])
     write_jsonl(out / 'success_matches.jsonl', matcher.success_matches)
     write_jsonl(out / 'cap_success_suffixes.jsonl', matcher.success_segments)
@@ -55,6 +58,8 @@ def prepare(records, config, output):
         frozen_bank_id=matcher.coverage_bank_id, code_coverage_is_frozen=True,
         matching_policy='cap_success_to_frozen_vla_success_v1',
         observation_policy=OBSERVATION_POLICY,
+        negative_query_policy=NEGATIVE_QUERY_POLICY,
+        excluded_cap_negative_windows=len(matcher.excluded_negative),
         matched_cap_success_windows=len(matcher.success_matches),
         admitted_cap_success_windows=len(matcher.coverage),
         admitted_cap_success_suffixes=len(matcher.success_segments),
@@ -73,13 +78,16 @@ def audit_prepared(path, config=None):
     path = Path(path)
     from .config import Config
     stored_config = Config.load(path / 'config.json')
-    if json.loads((path/'report.json').read_text()).get('observation_policy') != OBSERVATION_POLICY:
+    report = json.loads((path/'report.json').read_text())
+    if report.get('observation_policy') != OBSERVATION_POLICY:
         raise ValueError('Rebuild prepared matches using policy inputs only; old matching rules are unsupported')
+    if report.get('negative_query_policy') != NEGATIVE_QUERY_POLICY:
+        raise ValueError('Rebuild prepared matches using VLA-only negative queries; old negative matching rules are unsupported')
     # Microbatches/optimizer may change. Sampling/masks/split/matching may not.
     if config:
         for key in ('horizon','action_dim','environment_action_dim','native_control_hz','flow_steps',
                     'min_pair_steps','shared_prefix_tolerance','identical_action_tolerance',
-                    'coverage','pairing','cap_success_admission','split_fractions','conservative_task_split'):
+                    'coverage','pairing','cap_success_admission','negative_query_policy','split_fractions','conservative_task_split'):
             if getattr(config,key) != getattr(stored_config,key):
                 raise ValueError(f'Prepared artifact config mismatch: {key}')
     hashes = json.loads((path / 'checksums.json').read_text())
@@ -89,6 +97,8 @@ def audit_prepared(path, config=None):
     all_records = load_windows(path / 'all_windows.jsonl')
     audit_split(all_records)
     records = load_windows(path / 'training_pool.jsonl')
+    if any(r.training_quality == 'negative' and r.controller != 'VLA' for r in records):
+        raise ValueError('Eligible negative training pool must contain VLA failures only')
     by_id = {r.sample_id:r for r in records}
     for r in all_records:
         r.validate().payload()
@@ -97,7 +107,9 @@ def audit_prepared(path, config=None):
     pairs = read_jsonl(path / 'pairs.jsonl')
     for p in pairs:
         neg = by_id[p['negative_id']]
-        if neg.training_quality != 'negative' or not 1 <= len(p['references']) <= 3:
+        if (neg.training_quality != 'negative' or neg.controller != 'VLA' or
+                p.get('negative_query_policy') != NEGATIVE_QUERY_POLICY or
+                p.get('negative_controller') != 'VLA' or not 1 <= len(p['references']) <= 3):
             raise ValueError('Invalid negative/ref inventory')
         for ref in p['references']:
             pos = by_id[ref['sample_id']]
