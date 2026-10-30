@@ -105,6 +105,11 @@ def audit_prepared(path, config=None):
         if sha256(r.action_path) != hashes['payloads'][r.sample_id]:
             raise ValueError('Action payload changed')
     pairs = read_jsonl(path / 'pairs.jsonl')
+    if report.get('training_policy') == 'positive_fm_source_tail_v1':
+        from .positive_fm import audit_positive_fm
+        audit_positive_fm(records, pairs, config or stored_config)
+        if {r.sample_id for r in all_records} != set(by_id):
+            raise ValueError('Positive-only all_windows must equal the training pool')
     for p in pairs:
         neg = by_id[p['negative_id']]
         if (neg.training_quality != 'negative' or neg.controller != 'VLA' or

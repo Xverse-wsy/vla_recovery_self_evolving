@@ -3,6 +3,51 @@
 这是用户 12 点方案的一版独立 PyTorch 实现。位于新目录，不修改已有 CAP-X、
 RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)。
 
+## 当前纯正向 FM 版本（2026-10-31）
+
+最新方案先仅训练现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，
+监督速度方向；没有实现单时间点clean-action吸引／排斥，也不启动该训练分支。
+
+| 来源 | H=10的尾部处理 |
+| --- | --- |
+| vla_progress_candidate：失败／被接管父轨迹的VLA中途正向片段 | 不足10个真实动作的起点舍弃，不补齐，不跨入错误片段 |
+| autonomous_episode_success：完整自主成功 | 尾部重复最后真实动作补齐，补齐动作也参与FM监督 |
+| 已通过现有匹配的CAP成功后缀 | 同上；仍限制在最早匹配点到同一成功程序段结束 |
+
+只重建训练payload，不修改原窗口、原Parquet或旧匹配结果。保留原窗口起点采样密度
+（当前约10步一个起点及事件起点），不会扩展成逐帧采样。一个100动作片段如采用逐帧起点，
+完整H=10窗口的最后合法起点为零起点90；本入口保留原索引中满足此条件的起点。
+`valid_mask`包含成功末动作的重复监督；`real_action_mask`单独标识真实记录部分。
+模型的25维填充始终不参与loss。原始专家40条不会自动加入当前正池。
+
+```bash
+python -m recovery_pair prepare-positive-fm \
+  --admission /path/to/completed_success_admission \
+  --config configs/libero_pi05_positive_fm.json \
+  --output /path/to/new_positive_fm_prepared
+python -m recovery_pair audit --prepared /path/to/new_positive_fm_prepared
+```
+
+prepare仅CPU运行，无需重新匹配或编码图像。换服务器后先按后文命令在本机重建原库与
+success_admission，再准备本机FM索引；不要直接复用A800绝对路径。入口也可独立运行
+`python -m recovery_pair.positive_fm`并传同样参数。
+
+用户决定正式训练预算、检查GPU空闲后，手动执行（此处仅列命令）：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m recovery_pair train \
+  --prepared /path/to/new_positive_fm_prepared \
+  --config configs/libero_pi05_positive_fm.json --mode fm_only \
+  --checkpoint /path/to/original/RLinf-Pi05-LIBERO-SFT \
+  --norm-stats /path/to/original/norm_stats.json --output /path/to/new_fm_run
+```
+
+多卡可使用后文torchrun入口并保留`--mode fm_only`。沿用lr1e-5、FM全局batch64、
+VLA:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
+config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认上限，
+**不表示数据遍历50个epoch**；正式预算通过该字段设置。沿用验证早停及checkpoint规则。
+未授权启动正式训练。旧pair配置与数据保留，可独立做对照；新FM资产禁止用于pair模式。
+
 ## 已实现的行为
 
 | 环节 | 实现 |

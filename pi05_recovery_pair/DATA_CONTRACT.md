@@ -151,6 +151,14 @@ EEF侧字段仅留作日志，不作为独立真值来源。只有两路RGB特�
 局部质量及证据。动作 NPZ 包含 `[H,D]` actions、valid_mask、trusted_error_mask。
 H默认10；尾部补齐和D32中25个padding维度均无效。
 
+上述为原匹配／pair窗口的规则。新增纯FM资产training_policy=positive_fm_source_tail_v1
+单独复制动作payload：VLA中途正常推进窗口不足完整真实H步时舍弃；完整自主成功与已纳入
+CAP成功后缀的尾部重复最后真实动作至H，并把重复的7维动作设为有效FM监督。
+real_action_mask单独标记真实动作，source记录原window/payload/SHA、真实与重复步数。
+填充模型维度仍无效；不复制未来观测或跨越原正向片段；保留原窗口起点及split。
+这类资产pairs为空，配置pair_batch=0、eta=0，训练仅允许mode=fm_only。
+不能把这些重复步误称为真实执行记录，也不能将这种payload送入旧pair配对。
+
 稀缺负窗口逐步保留，其余约10控制步取样，额外保留事件起点。
 交接起点另存一条 VLA unknown 的 state-only 记录供状态清单使用，不参与成功入池匹配。
 各段共享父episodeID，采样不会把拆出的多个代码段当作多个独立失败episode加权。

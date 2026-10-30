@@ -353,3 +353,28 @@ A800 GPU0实际完成 `python -m recovery_pair.negative_matching`，输出
 
 本地完整CPU测试：75 passed in 10.50s，含新增的状态匹配／可训练配对分离、
 缺失图像特征拒绝、无数值候选安全返回0测试；未启动真实pair优化器更新。
+
+## 纯正向FM来源差异尾部策略（2026-10-31）
+
+用户确认本轮只用当前已纳入正池进行原生FM训练。新增独立入口
+`prepare-positive-fm`、配置`configs/libero_pi05_positive_fm.json`，不修改原匹配库。
+纯FM训练必须显式`--mode fm_only`，pair_batch=0、eta=0，负样本与pair均不进入新资产。
+不实现此前讨论的单时间点吸引／排斥；旧pair配置保留。
+
+A800实际CPU准备及完整资产审计通过，输出`outputs/positive_fm_source_tail_20261031_v1/`：
+
+- 原正池1043窗口：VLA中途推进528、自主成功333、CAP成功后缀182。
+- 舍弃36个不足10真实动作步的VLA中途窗口，保留492个完整窗口。
+- 自主成功333和CAP成功182窗口全部保留；共34个成功尾部窗口重复末动作，
+  新增185个重复监督动作步。这些重复动作不被表述为真实执行记录。
+- 最终1007个正窗口：train VLA646＋CAP182＝828，validation VLA91，test VLA88。
+- valid_mask包含成功尾部的重复动作，real_action_mask只标真实记录部分；
+  模型25个填充维度始终无效。VLA中途窗口不跨入错误区间、不复制末动作。
+- 不增加原始专家40、不重做匹配、不改变原起点采样密度、划分或成功后缀范围。
+- 新资产SHA256：`4bd9606ce67f298fccb9987cf4b308f116ccc3ce8fed50bdb78d15b0dcd46cf8`。
+- 本次只做真实数据CPU准备与审计；没有真实模型优化器更新、仿真或GPU占用。
+
+本地完整CPU测试80 passed in 10.10s。新增测试覆盖VLA短窗口舍弃、成功末动作复制及其
+loss有效性、来源和负类拒绝、尾部损坏审计、纯FM模式约束、一次合成更新及checkpoint恢复。
+这不表示真实GPU纯FM更新已验证。默认预算仍为fm_only_updates=100次更新，正式预算可改，
+不宣称已实现或执行该数据集的50完整epoch训练。

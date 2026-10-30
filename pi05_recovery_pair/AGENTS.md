@@ -4,6 +4,18 @@ Read README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independ
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
+- Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
+  admitted positive_pool, uses native FM only and no negative/pair branch. Use
+  configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
+  suffix scope, source window starts and splits; no expert40 is implicitly added.
+  Intermediate VLA progress windows require a full REAL H-step horizon; drop short
+  tail windows. Autonomous successful episodes and admitted CAP-success suffixes
+  may repeat the last real action to H, and these repeats ARE supervised by FM.
+  Keep model padding dimensions invalid; real_action_mask separately traces repeats.
+  Source-aware prepared artifacts cannot be used by pair modes. Do not overwrite
+  the old matching libraries/payloads. fm_only_updates is an explicit update budget
+  (default100), not 50 dataset epochs. No formal training was authorized here.
+
 - User's current experiment uses the EXISTING four segment classes as training
   labels. Do not require another local-action review to use them. Preserve their
   actual WCM/program-completion provenance; do not fabricate verified_local_actions.

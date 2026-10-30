@@ -54,6 +54,8 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
     if save_every<1 or validate_every<1 or patience<1 or keep_last<1 or (max_updates is not None and max_updates<1):
         raise ValueError('Training intervals/bounds must be positive')
     records, pairs, digest = audit_prepared(prepared, config)
+    from .positive_fm import check_training_mode
+    check_training_mode(prepared, mode)
     if len({r.spec.identity for r in records}) != 1:
         raise ValueError('FM and pair pools must use one identical action specification')
     for r in records:

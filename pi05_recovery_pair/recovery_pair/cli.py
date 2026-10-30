@@ -48,6 +48,9 @@ def main():
     p=subs.add_parser('prepare')
     for arg in ('windows','config','output'):
         p.add_argument('--'+arg,required=True)
+    p=subs.add_parser('prepare-positive-fm',help='Positive-only FM with source-specific terminal repetition')
+    for arg in ('admission','config','output'):
+        p.add_argument('--'+arg,required=True)
     p=subs.add_parser('audit')
     p.add_argument('--prepared',required=True)
     p=subs.add_parser('smoke')
@@ -116,6 +119,9 @@ def main():
         result=calibrate(load_windows(args.windows),read_jsonl(args.reviews),Config.load(args.config),args.output)
     elif args.command=='prepare':
         result=prepare(load_windows(args.windows),Config.load(args.config),args.output)
+    elif args.command=='prepare-positive-fm':
+        from .positive_fm import prepare_positive_fm
+        result=prepare_positive_fm(args.admission,Config.load(args.config),args.output)
     elif args.command=='audit':
         records,pairs,digest=audit_prepared(args.prepared)
         result=dict(windows=len(records),pairs=len(pairs),artifact_sha256=digest)
@@ -131,6 +137,8 @@ def main():
         base=base_identity(args.checkpoint,args.norm_stats)
         # Audit before allocating the model.
         audit_prepared(args.prepared,config)
+        from .positive_fm import check_training_mode
+        check_training_mode(args.prepared,args.mode)
         backend=load_backend(args.checkpoint,args.norm_stats,config,device)
         result=train(backend,ObservationLoader(backend),args.prepared,config,args.output,base=base,
             resume=args.resume,mode=args.mode,max_updates=args.max_updates,save_every=args.save_every,
