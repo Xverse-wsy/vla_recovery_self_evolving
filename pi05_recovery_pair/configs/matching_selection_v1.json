@@ -1,0 +1,41 @@
+{
+  "selection_status": "initial_experimental_thresholds_selected",
+  "observation_policy": "policy_inputs_only_v1",
+  "coverage": {
+    "position_m": 0.03,
+    "rotation_deg": 15.0,
+    "proprio_rms": 0.2,
+    "image_cosine": 0.005,
+    "max_candidates": 50
+  },
+  "pairing": {
+    "position_m": 0.01,
+    "rotation_deg": 5.0,
+    "proprio_rms": 0.1,
+    "image_cosine": 0.002,
+    "max_candidates": 50
+  },
+  "policy": "Visible object-layout differences do not independently exclude candidates; use public instruction, policy proprio and starting RGB distances only.",
+  "basis": "Train candidate distance distribution; no compatibility-accuracy optimization or held-out validation.",
+  "encoder_sha256": "15f4b4b9f3c3208977702fe96c9c6fa671d99244c1ed56e9f9a20f00bad28bd8",
+  "pretrained_normalization_sha256": "dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1",
+  "feature_method": "Native pi05 projected patch tokens, spatial mean, L2 normalization; worst cosine distance across front/wrist.",
+  "source_candidate_pairs": 133,
+  "retained_candidate_pairs": 70,
+  "cap_success_query_windows_total": 427,
+  "retained_cap_windows": 27,
+  "retained_cap_window_fraction": 0.06323185011709602,
+  "cap_success_segments_total": 20,
+  "retained_cap_segments": 6,
+  "retained_by_split": {
+    "train": 27,
+    "validation": 0,
+    "test": 0
+  },
+  "pairing_candidate_count": null,
+  "pairing_status": "not_evaluated_on_all_negative_windows",
+  "matching_accuracy": null,
+  "training_started": false,
+  "original_datasets_modified": false,
+  "formal_prepared_pool_created": false
+}

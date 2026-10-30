@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pi05-recovery-pair"
+version = "0.1.0"
+description = "Auditable local-window FM and differentiable flow pair training"
+requires-python = ">=3.10,<3.14"
+dependencies = ["torch>=2.7,<2.8", "numpy>=1.26", "pyarrow>=17", "pillow>=10"]
+
+[project.scripts]
+recovery-pair = "recovery_pair.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["recovery_pair*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

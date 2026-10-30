@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "selection_status": "initial_wider_thresholds_with_successful_program_suffix",
+  "observation_policy": "policy_inputs_only_v1",
+  "cap_success_admission": "segment_suffix",
+  "coverage": {
+    "position_m": 0.05,
+    "rotation_deg": 30.0,
+    "proprio_rms": 0.5,
+    "image_cosine": 0.007,
+    "max_candidates": 50
+  },
+  "pairing": {
+    "position_m": 0.01,
+    "rotation_deg": 5.0,
+    "proprio_rms": 0.1,
+    "image_cosine": 0.002,
+    "max_candidates": 50
+  },
+  "encoder_sha256": "15f4b4b9f3c3208977702fe96c9c6fa671d99244c1ed56e9f9a20f00bad28bd8",
+  "pretrained_normalization_sha256": "dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1",
+  "policy": "Match starting public instruction, state8, front/wrist RGB to frozen VLA positives; admit the same successful program suffix from the earliest matched window. Visible object layout differences do not independently veto admission.",
+  "numerical_candidates_checked": 641,
+  "direct_match_relations": 501,
+  "directly_matched_cap_windows": 115,
+  "admitted_cap_windows": 182,
+  "admitted_cap_success_segments": 14,
+  "admitted_cap_action_steps": 1733,
+  "admitted_by_split": {
+    "train": 182,
+    "validation": 0,
+    "test": 0
+  },
+  "source_windows_sha256": "bab907ae07282f068a9da56ac550dab2e4dd1427074da1b29be595861fdcf926",
+  "pairing_status": "not_evaluated_on_all_negative_windows",
+  "matching_accuracy": null,
+  "training_started": false,
+  "evidence_directory": "outputs/success_suffix_run_20261030_v2",
+  "basis": "User-requested wider admission and complete successful-program suffix; not accuracy-calibrated."
+}

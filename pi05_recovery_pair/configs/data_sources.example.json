@@ -1,0 +1,18 @@
+{
+  "segmented_datasets": [
+    "dataset_subsets/pi05_recovery_segmented/recovery_success20_segmented",
+    "dataset_subsets/pi05_recovery_segmented/recovery_failure20_segmented"
+  ],
+  "autonomous_datasets": [
+    "dataset_subsets/pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot"
+  ],
+  "norm_stats": "models/RLinf-Pi05-LIBERO-SFT/physical-intelligence/libero/norm_stats.json",
+  "algorithm_config": "libero_pi05.json",
+  "expected_segment_counts": {
+    "D_vla_positive": 60,
+    "D_vla_negative": 40,
+    "D_code_positive": 20,
+    "D_code_negative": 362
+  },
+  "expected_image_shape": [256, 256, 3]
+}

@@ -3,6 +3,12 @@
 **接手本项目的 agent：先读 [AGENTS.md](AGENTS.md)。** 它列出实验定义、部署顺序、
 代码地图、参数位置、输出/续跑约定和已验证范围；不需要先前对话。
 
+新增的局部片段匹配、成功恢复后缀入池及 FM/pair 实验位于独立目录
+[pi05_recovery_pair/](pi05_recovery_pair/README.md)。其接手入口是
+[pi05_recovery_pair/AGENTS.md](pi05_recovery_pair/AGENTS.md)，当前规则和实测结果见
+[VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
+新目录有自己的配置、数据要求和命令，不会自动接入根目录的50-epoch流程。
+
 This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets
 or modify the original datasets, RLinf source, or base model.

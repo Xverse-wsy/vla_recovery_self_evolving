@@ -1,0 +1,48 @@
+{
+  "horizon": 10,
+  "action_dim": 32,
+  "environment_action_dim": 7,
+  "native_control_hz": 20,
+  "flow_steps": 3,
+  "integrator": "euler",
+  "learning_rate": 1e-05,
+  "gradient_clip": 1.0,
+  "lambda_push": 0.1,
+  "eta": 0.05,
+  "eta_warmup_fraction": 0.1,
+  "fm_batch": 64,
+  "pair_batch": 4,
+  "vla_fraction": 0.75,
+  "fm_micro_batch": 1,
+  "pair_micro_batch": 1,
+  "max_episode_reuses": 50,
+  "fm_only_updates": 100,
+  "min_pair_steps": 3,
+  "identical_action_tolerance": 0.0001,
+  "shared_prefix_tolerance": 0.0001,
+  "state_stride": 10,
+  "seed": 42,
+  "checkpoint_sampling": true,
+  "conservative_task_split": true,
+  "matching_policy": "cap_success_to_vla_success_v1",
+  "cap_success_admission": "segment_suffix",
+  "split_fractions": [
+    0.8,
+    0.1,
+    0.1
+  ],
+  "coverage": {
+    "position_m": 0.05,
+    "rotation_deg": 30.0,
+    "proprio_rms": 0.5,
+    "image_cosine": 0.007,
+    "max_candidates": 50
+  },
+  "pairing": {
+    "position_m": 0.01,
+    "rotation_deg": 5.0,
+    "proprio_rms": 0.1,
+    "image_cosine": 0.002,
+    "max_candidates": 50
+  }
+}
