@@ -85,7 +85,7 @@ def test_positive_fm_prepared_is_auditable_no_pairs_and_fm_training_resumes(wind
     previous = admission(tmp_path, records, config)
     hashes = {r.action_path: sha256(r.action_path) for r in records}
     out = tmp_path / 'prepared'
-    report = prepare_positive_fm(previous, config, out)
+    report = prepare_positive_fm(previous, config, out, dense=False)
     assert report['positive_windows'] == 3 and report['dropped_intermediate_vla_windows'] == 1
     assert report['repeated_tail_windows'] == 2 and report['negative_windows'] == report['pairs'] == 0
     accepted, pairs, _ = audit_prepared(out, config)
@@ -107,7 +107,7 @@ def test_positive_fm_prepared_is_auditable_no_pairs_and_fm_training_resumes(wind
         resume=tmp_path / 'run/update_000001.pt', save_every=1)
     assert resumed['updates'] == 2
     with pytest.raises(FileExistsError):
-        prepare_positive_fm(previous, config, out)
+        prepare_positive_fm(previous, config, out, dense=False)
 
 
 def test_positive_fm_rejects_unknown_sources_negative_records_and_corrupted_tail(window, config, tmp_path):
@@ -154,9 +154,9 @@ def test_all_train_preserves_admitted_actions_and_disables_validation(window, co
     previous = admission(tmp_path, records, config)
     source_sha = sha256(previous/'positive_pool.jsonl')
     baseline = tmp_path/'preserve'
-    prepare_positive_fm(previous, config, baseline)
+    prepare_positive_fm(previous, config, baseline, dense=False)
     out = tmp_path/'all_train'
-    report = prepare_positive_fm(previous, config, out, all_train=True)
+    report = prepare_positive_fm(previous, config, out, all_train=True, dense=False)
     assert report['split_policy'] == 'all_train_v1'
     assert not report['validation_enabled']
     accepted, pairs, _ = audit_prepared(out, config)

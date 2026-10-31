@@ -31,6 +31,11 @@ FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训
 避免FP32层更新被中间BF16转换舍入；safetensors基座路径不变。评测run含checkpoint_load_policy，
 禁止在旧策略输出目录静默resume，须用新输出目录。
 
+最新逐帧版：匹配state_stride=10不变，训练在原已准入正向范围内逐帧滑动。
+9692个窗口（VLA中途4727、自主成功3232、CAP1733），全部train；CAP仍为原14个后缀。
+VLA中途不足完整H=10的起点舍弃，不补齐；完整自主成功/CAP成功尾部允许重复末动作监督。
+使用新的prepared/training输出目录，不resume旧稀疏checkpoint。此前1007窗口实测属于历史版本。
+
 ## 实验定义
 
 - A / `a60`：原始专家40条＋VLA自主成功20条。

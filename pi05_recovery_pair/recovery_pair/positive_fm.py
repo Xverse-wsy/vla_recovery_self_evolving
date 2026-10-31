@@ -7,11 +7,12 @@ from pathlib import Path
 import numpy as np
 
 from .config import Config
-from .data import write_jsonl
+from .data import write_jsonl, read_jsonl
 from .features import sha256
 from .matching import OBSERVATION_POLICY, NEGATIVE_QUERY_POLICY
 from .schema import Window, load_windows, save_windows, stable_id
 from .splits import audit_split
+from .dense_fm import DENSE_POLICY, dense_windows, audit_dense_starts, supervision_counts
 
 POLICY = 'positive_fm_source_tail_v1'
 
@@ -29,9 +30,10 @@ def tail_mode(record):
     raise ValueError('VLA positive source must identify intermediate progress or autonomous success')
 
 
-def transform_window(record, output):
+def transform_window(record, output, *, payload=None, original=None):
     mode = tail_mode(record)
-    payload = record.payload()
+    payload = record.payload() if payload is None else payload
+    original = record if original is None else original
     dims = np.asarray(record.spec.valid_dimensions, bool)
     steps = payload['valid_mask'][:, dims]
     n = int(steps.any(-1).sum())
@@ -54,8 +56,8 @@ def transform_window(record, output):
     data.update(sample_id=sid, action_path=str(dest), visual_features={})
     data['source'] = dict(record.source, fm_tail_policy=POLICY, fm_tail_mode=mode,
         fm_real_steps=n, fm_repeated_steps=record.spec.horizon - n,
-        original_window_id=record.sample_id, original_action_path=record.action_path,
-        original_action_sha256=sha256(record.action_path))
+        original_window_id=original.sample_id, original_action_path=original.action_path,
+        original_action_sha256=sha256(original.action_path))
     return Window.from_dict(data)
 
 
@@ -84,20 +86,22 @@ def audit_positive_fm(records, pairs, config):
             raise ValueError('Intermediate VLA windows must contain a full real horizon')
         if n < r.spec.horizon and not np.all(p['actions'][n:, dims] == p['actions'][n - 1, dims]):
             raise ValueError('Successful terminal windows must repeat the last real action')
+    if any(r.source.get('fm_sampling_policy') == DENSE_POLICY for r in records):
+        audit_dense_starts(records)
 
 
 def check_training_mode(prepared, mode):
     report = json.loads((Path(prepared) / 'report.json').read_text())
-    if report.get('training_policy') == POLICY and mode != 'fm_only':
+    if report.get('training_policy') in (POLICY, DENSE_POLICY) and mode != 'fm_only':
         raise ValueError('Source-aware positive artifact must use --mode fm_only')
 
 
 def audit_source_alignment(records, norm_stats):
     """Deep read-only audit against original segment Parquet, not copied NPZ alone."""
     import pyarrow.parquet as pq
-    from .data import QuantileAssets
+    from .data import QuantileAssets, read_jsonl, quaternion_from_rotvec
     assets = QuantileAssets(norm_stats)
-    tables, original_hashes = {}, {}
+    tables, original_hashes, manifest_hashes, manifest_entries = {}, {}, {}, {}
     seen = set()
     repeated, max_action_error = 0, 0.
     for r in records:
@@ -122,7 +126,10 @@ def audit_source_alignment(records, norm_stats):
         state, raw = tables[path]
         if row < 0 or row+n > len(raw) or raw.shape[1] != 7:
             raise ValueError('FM window crosses the original segment boundary')
-        if r.source['fm_tail_mode'] == 'repeat_last' and n < r.spec.horizon and row+n != len(raw):
+        scope = r.source.get('fm_scope_range', [0, len(raw)])
+        if row < scope[0] or row+n > scope[1]:
+            raise ValueError('FM window leaves admitted positive scope')
+        if r.source['fm_tail_mode'] == 'repeat_last' and n < r.spec.horizon and row+n != scope[1]:
             raise ValueError('Repeated actions must begin only at original successful segment end')
         if not np.array_equal(np.asarray(r.proprio, np.float32), state[row]):
             raise ValueError('FM state is not the original pre-action observation')
@@ -137,6 +144,19 @@ def audit_source_alignment(records, norm_stats):
             original_hashes[original] = sha256(original)
         if original_hashes[original] != r.source['original_action_sha256']:
             raise ValueError('Original matched action payload changed')
+        if r.source.get('fm_sampling_policy') == DENSE_POLICY:
+            manifest = r.source['fm_source_manifest']
+            if manifest not in manifest_hashes:
+                manifest_hashes[manifest] = sha256(manifest)
+                manifest_entries[manifest] = {e['segment_id']:e for e in read_jsonl(manifest)}
+            if manifest_hashes[manifest] != r.source['fm_source_manifest_sha256']:
+                raise ValueError('Original source manifest changed')
+            entry = manifest_entries[manifest][r.source['segment_id']]
+            step = row + entry['parent_start_step']
+            if (r.start_step != step or r.start_time_s != step/r.spec.control_hz or
+                    not np.array_equal(np.asarray(r.eef_position_m,np.float32),state[row,:3]) or
+                    not np.allclose(r.eef_quaternion_xyzw,quaternion_from_rotvec(state[row,3:6]),atol=1e-7)):
+                raise ValueError('Dense start time or EEF state differs from source observation')
         repeated += r.source['fm_repeated_steps']
     return dict(windows_checked=len(records), original_parquets=len(tables),
         original_action_payloads_checked=len(original_hashes), max_real_action_error=max_action_error,
@@ -144,7 +164,7 @@ def audit_source_alignment(records, norm_stats):
         original_segment_boundaries_respected=True, normalization_sha256=assets.sha)
 
 
-def prepare_positive_fm(admission, config, output, *, all_train=False):
+def prepare_positive_fm(admission, config, output, *, all_train=False, dense=True):
     config.validate()
     if config.pair_batch != 0 or config.eta != 0:
         raise ValueError('Use the positive_fm config: pair_batch=0, eta=0')
@@ -154,7 +174,7 @@ def prepare_positive_fm(admission, config, output, *, all_train=False):
         raise ValueError('Expected completed policy-input-only positive admission')
     saved = Config.load(previous / 'config.json')
     for key in ('horizon', 'action_dim', 'environment_action_dim', 'native_control_hz',
-                'coverage', 'cap_success_admission', 'seed', 'split_fractions', 'conservative_task_split'):
+                'coverage', 'cap_success_admission', 'state_stride', 'seed', 'split_fractions', 'conservative_task_split'):
         if getattr(saved, key) != getattr(config, key):
             raise ValueError('Positive admission config differs: ' + key)
     source = previous / 'positive_pool.jsonl'
@@ -179,8 +199,15 @@ def prepare_positive_fm(admission, config, output, *, all_train=False):
     try:
         (out / 'actions').mkdir()
         accepted, dropped = [], []
-        for r in records:
-            result = transform_window(r, out)
+        if dense:
+            dropped = [dict(sample_id=r.sample_id, episode_id=r.episode_id,
+                segment_id=r.source.get('segment_id'), split=r.split,
+                reason='original_sparse_start_has_less_than_full_real_horizon')
+                for r in records if tail_mode(r)=='full_real_only' and
+                r.source['action_range'][1]-r.source['action_range'][0]<r.spec.horizon]
+        candidates = dense_windows(records, previous, out) if dense else records
+        for r in candidates:
+            result = r if dense else transform_window(r, out)
             if result is None:
                 dropped.append(dict(sample_id=r.sample_id, episode_id=r.episode_id,
                     segment_id=r.source.get('segment_id'), split=r.split,
@@ -203,7 +230,7 @@ def prepare_positive_fm(admission, config, output, *, all_train=False):
             action_path=r.action_path, action_sha256=sha256(r.action_path)) for r in records])
         (out / 'config.json').write_text(json.dumps(config.to_dict(), indent=2))
         counts = Counter((r.split, r.controller) for r in accepted)
-        report = dict(state='complete', training_policy=POLICY, training_mode='fm_only',
+        report = dict(state='complete', training_policy=DENSE_POLICY if dense else POLICY, training_mode='fm_only',
             observation_policy=OBSERVATION_POLICY, negative_query_policy=NEGATIVE_QUERY_POLICY,
             source_admission=str(previous), source_positive_pool_sha256=digest,
             source_positive_windows=len(records), positive_windows=len(accepted),
@@ -215,9 +242,17 @@ def prepare_positive_fm(admission, config, output, *, all_train=False):
             split_policy='all_train_v1' if all_train else 'preserve_source_v1',
             validation_enabled=any(r.split == 'validation' for r in accepted),
             state_stride_unchanged=True, coverage_and_suffix_scope_unchanged=True,
+            matching_state_stride=config.state_stride, training_start_stride=1 if dense else config.state_stride,
             source_original_actions_unchanged=True, training_started=False,
             fm_only_updates=config.fm_only_updates,
-            note='Retains admitted windows, starts and suffix scope; split_policy declares train reassignment. Repeated terminal actions ARE supervised. No pair branch or expert40 added.')
+            note='Matching/suffix scopes unchanged; dense training starts every frame inside admitted positive scopes. Intermediate VLA requires full real H actions; successful tails repeat and ARE supervised. No pair branch or expert40 added.')
+        if dense:
+            report.update(supervision_counts(accepted))
+            scopes = read_jsonl(out/'dense_scopes.jsonl')
+            report.update(admitted_positive_scopes=len(scopes),
+                admitted_cap_success_segments=sum(s['controller']=='code' for s in scopes),
+                excluded_intermediate_tail_starts=sum(s['excluded_short_tail_starts'] for s in scopes
+                                                     if s['tail_mode']=='full_real_only'))
         (out / 'report.json').write_text(json.dumps(report, indent=2))
         if sha256(source) != digest:
             raise ValueError('Positive admission changed during preparation')
@@ -237,9 +272,10 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--all-train', action='store_true',
                         help='Use every already-admitted positive window for training; no heldout or early stopping')
+    parser.add_argument('--legacy-sparse', action='store_true', help='Reproduce historical sparse training starts')
     args = parser.parse_args()
     print(json.dumps(prepare_positive_fm(args.admission, Config.load(args.config), args.output,
-                                         all_train=args.all_train), indent=2))
+                                         all_train=args.all_train, dense=not args.legacy_sparse), indent=2))
 
 
 if __name__ == '__main__':

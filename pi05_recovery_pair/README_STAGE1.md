@@ -19,8 +19,10 @@ CAP准入只用公开任务指令、执行前本体状态和前视／腕部RGB�
 π0.5视觉编码器精筛；阈值为位置5cm、旋转30°、标准化本体RMS0.50、图像距离0.007。
 保留已有匹配分组以重建同一准入结果，再把所有准入正窗口转为train；不扩大准入范围。
 
+训练起点改为逐帧滑动（training_start_stride=1）；匹配仍为state_stride=10，不重新匹配或扩大CAP准入范围。
+例如第1帧观测监督动作1～10，第2帧监督2～11，依此类推。
 动作窗口H=10，环境7维OSC动作填充到模型32维，沿用基座归一化资产，不额外转delta。
-VLA中途正片段必须有完整10真实步，不够则丢弃；完整自主成功／CAP成功后缀允许重复末动作
+VLA中途正片段的每个起点必须有完整10真实步，不够则丢弃该起点；完整自主成功／CAP成功后缀允许重复末动作
 补齐，补齐部分参与FM监督。25个模型填充维度不参与loss。
 
 ## 1. 先准备环境、权重和数据
@@ -94,8 +96,10 @@ bash scripts/run_positive_fm_pipeline.sh prepare > "$PAIR_RUN.prepare.log" 2>&1
 CAP成功后缀准入→源感知FM尾部处理→`--all-train`→原数据对齐审计。
 **它不启动训练，也不做负向配对。**
 
-当前这批输入结果应为1007正窗口，全部train：9885真实动作步＋185重复补齐位置＝10070。
-其中VLA825窗口、CAP182窗口。检查`$PAIR_RUN/prepared/report.json`：
+当前这批输入逐帧生成9692个正窗口，全部train：VLA中途4727、自主成功3232、CAP1733。
+去重的真实动作帧10052；重叠窗口共有95390个真实动作监督位置，加1530个尾部重复位置，合计96920。
+CAP仍是既定14个成功程序后缀；VLA中途片段末尾9个不足完整H的起点均不生成，
+不会用末动作补齐。匹配与训练起点密度分开，不能将state_stride改为1来替代此流程。检查`$PAIR_RUN/prepared/report.json`：
 `split_policy=all_train_v1`、`validation_enabled=false`。原始数据不修改。
 
 ## 4. 启动第一阶段训练
@@ -137,7 +141,7 @@ export PAIR_RESUME="$PAIR_RUN/training/update_000001.pt"
 bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1
 ```
 
-不能把旧保留划分资产的checkpoint直接resume到当前全train资产；恢复会校验数据、基座与目标版本。
+不能把旧稀疏资产或保留划分资产的checkpoint直接resume到当前逐帧全train资产；恢复会校验数据、基座与目标版本。
 
 ## 5. 导出第一阶段模型
 
@@ -154,16 +158,14 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 
 ## 当前已完成与未执行的部分
 
-- A800已生成`outputs/positive_fm_all_train_20261031_v1/`并审计1007窗口，动作和mask与旧资产精确一致。
-- CPU完整回归89项通过；阶段脚本有命令串联测试，验证prepare不启动训练及单机多卡参数。
-- 此前GPU0/GPU2的真实短更新、断点恢复、导出重载与推理检查通过。
-- 最新在A800 GPU0实际执行本文的阶段脚本prepare→train→export，再重新加载原生推理。
-  从头重建四类库、视觉匹配、1007全train窗口后，用原始few-shot基座做1次FM64更新，
-  无验证／负分支，checkpoint保存及完整权重导出均通过；重新加载后可训练参数精确一致，
-  冻结参数和原基座不变，动作输出[1,10,32]且全部有限。全程329.59秒，screen正常退出。
-  输出为outputs/stage1_readme_e2e_20261031_v1/；本次无需修改训练代码。
-- 因此A800单卡完整入口已实际跑通；迁移仍须正确配置环境、数据和GPU。
-  正式100更新长训、H100单机16卡及LIBERO成功率评测尚未执行。
+- A800逐帧资产：`outputs/positive_fm_dense_all_train_20261031_v2/`，9692窗口，全部train。
+  按74个原始控制段逐条核对原Parquet，观测、动作、归一化和边界对齐，真实动作最大误差0。
+- CPU回归93项通过，覆盖逐帧起点、短段舍弃、VLA不补齐、CAP后缀锚点和局部标签／事件边界。
+- 此前稀疏1007窗口版本的prepare→train(1更新)→export→精确重载／原生推理已通过，
+  见历史`outputs/stage1_readme_e2e_20261031_v1/`；不能将其写成逐帧版的全流程新实测。
+- 逐帧版A800 GPU0短验证通过：三类原生FM/梯度检查＋1次FM64更新，冻结VLM不变，
+  峰值allocated10.57GiB；输出`outputs/dense_fm_gpu0_20261031_v1/`。未重新执行导出重载。
+- 正式100更新长训、H100单机16卡及LIBERO成功率评测尚未执行。
 
 更详细的目录说明和故障处理见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)，历史验证记录见
 [VALIDATION.md](VALIDATION.md)。本README是本次第一阶段的首要入口。

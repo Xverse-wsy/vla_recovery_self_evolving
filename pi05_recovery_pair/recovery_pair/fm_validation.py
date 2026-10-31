@@ -16,7 +16,7 @@ from .flow import fm_prediction
 from .engine import fm_loss_elements
 from .openpi_backend import load_backend, ObservationLoader
 from .pipeline import audit_prepared
-from .positive_fm import POLICY, check_training_mode, audit_source_alignment
+from .positive_fm import POLICY, DENSE_POLICY, check_training_mode, audit_source_alignment
 from .trainer import base_identity, train
 
 
@@ -73,7 +73,7 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
     records, pairs, digest = audit_prepared(prepared, config)
     check_training_mode(prepared, 'fm_only')
     info = json.loads((Path(prepared) / 'report.json').read_text())
-    if info.get('training_policy') != POLICY or pairs:
+    if info.get('training_policy') not in (POLICY, DENSE_POLICY) or pairs:
         raise ValueError('Expected source-aware positive-only prepared data')
     if not device.startswith('cuda') or not torch.cuda.is_available():
         raise ValueError('This validation explicitly requires a real CUDA model')

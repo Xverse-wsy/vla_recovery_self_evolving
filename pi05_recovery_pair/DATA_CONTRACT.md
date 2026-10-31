@@ -151,11 +151,20 @@ EEF侧字段仅留作日志，不作为独立真值来源。只有两路RGB特�
 局部质量及证据。动作 NPZ 包含 `[H,D]` actions、valid_mask、trusted_error_mask。
 H默认10；尾部补齐和D32中25个padding维度均无效。
 
-上述为原匹配／pair窗口的规则。新增纯FM资产training_policy=positive_fm_source_tail_v1
+上述为原匹配／pair窗口的规则。当前纯FM资产training_policy=positive_fm_dense_source_tail_v2
 单独复制动作payload：VLA中途正常推进窗口不足完整真实H步时舍弃；完整自主成功与已纳入
 CAP成功后缀的尾部重复最后真实动作至H，并把重复的7维动作设为有效FM监督。
 real_action_mask单独标记真实动作，source记录原window/payload/SHA、真实与重复步数。
-填充模型维度仍无效；不复制未来观测或跨越原正向片段；保留原窗口起点。
+填充模型维度仍无效；不复制未来观测或跨越原正向片段。
+匹配state_stride=10不变；训练在既定范围内逐帧生成重叠窗口，training_start_stride=1。
+原input_manifest恢复标签和事件边界，cap_success_suffixes恢复最早已准入起点与程序结束。
+source.fm_scope_range/fm_label_boundary记录范围，fm_source_manifest及SHA追溯原manifest；
+original_window_id/original_action_path是该范围的原始稀疏锚点，仅用于准入来源追溯，
+不表示每个新增训练起点都经过图像匹配。具体动作与观测对照source.segment_row和原Parquet。
+成功CAP的匹配参考适用于scope锚点；新起点不另声明为直接匹配。
+dense_scopes.jsonl列出全部准入范围、可用逐帧起点数及被排除的不足H起点。
+重叠窗口监督位置数与去重真实动作帧数在report中分别计数；不能混称新增执行帧。
+历史training_policy=positive_fm_source_tail_v1可用--legacy-sparse复现，不用于本轮。
 最新--all-train将已准入窗口全部设为train，source.fm_original_split追溯原划分，
 不保留validation/test或验证早停；默认不传flag时保留旧split以复现历史结果。
 这类资产pairs为空，配置pair_batch=0、eta=0，训练仅允许mode=fm_only。

@@ -11,7 +11,14 @@ CAP-X code, RLinf code or old training configs to run it.
 - Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
   admitted positive_pool, uses native FM only and no negative/pair branch. Use
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
-  suffix scope and source window starts; no expert40 is implicitly added.
+  suffix scope; no expert40 is implicitly added. Latest request: dense TRAINING starts
+  every frame inside the SAME admitted positive scopes. Matching stays state_stride=10;
+  never densify or redo matching to implement dense training. Keep original input_manifest
+  and successful suffix provenance. No padding of intermediate VLA positive tails.
+  New policy positive_fm_dense_source_tail_v2; use a new output, no old sparse resume.
+  Current dense artifact: 9692 all-train windows, 10052 unique real frames; 93 CPU tests pass.
+  A800 GPU0 dense_fm_gpu0_20261031_v1: three native FM gradient probes and ONE update
+  passed, frozen weights unchanged, peak allocated10.57GiB. No new dense export/reload.
   Latest user override: prepare with --all-train. Move ALL already-admitted positives
   to train, retaining fm_original_split; no validation/test or validation early stop.
   Do not rematch or admit additional CAP windows. Preserve old immutable artifacts.
