@@ -1,0 +1,163 @@
+# 第一阶段：正向片段 π0.5 FM 训练
+
+**本次只做第一阶段。**使用已有正向片段训练π0.5，沿用原生FM loss。
+负片段不参与优化，不使用pair、吸引或排斥loss；第二阶段以后另做。
+
+## 这次跑什么
+
+从**最初的RLinf few-shot π0.5**初始化，冻结VLM，训练action expert和必要投影。
+正向监督包括：
+
+- VLA完整自主成功轨迹。
+- 已切分出的VLA正常推进片段，包括最终失败或被CAP接管轨迹中的正片段。
+- 通过匹配筛选后，从最早匹配起点到同一CAP成功程序段结束的完整后缀。
+
+**不加入专家40；不训练VLA负片段或CAP失败片段。全部已纳入正窗口用于训练，
+不留验证集／测试集，不启用验证早停。**
+
+CAP准入只用公开任务指令、执行前本体状态和前视／腕部RGB。先数值粗筛，再用冻结的
+π0.5视觉编码器精筛；阈值为位置5cm、旋转30°、标准化本体RMS0.50、图像距离0.007。
+保留已有匹配分组以重建同一准入结果，再把所有准入正窗口转为train；不扩大准入范围。
+
+动作窗口H=10，环境7维OSC动作填充到模型32维，沿用基座归一化资产，不额外转delta。
+VLA中途正片段必须有完整10真实步，不够则丢弃；完整自主成功／CAP成功后缀允许重复末动作
+补齐，补齐部分参与FM监督。25个模型填充维度不参与loss。
+
+## 1. 先准备环境、权重和数据
+
+在新Linux GPU机器上，先按仓库根目录[ENVIRONMENT.md](../ENVIRONMENT.md)安装**训练环境**，
+固定RLinf提交`c70606f08cdca259b8dec03d4430926b5b8fac9d`并保留其Git checkout。
+当前模块不是完整环境安装包。已有环境时：
+
+```bash
+cd /path/to/vla_recovery_self_evolving
+source /path/to/train-env/bin/activate
+python -m pip install --no-deps -e ./pi05_recovery_pair
+python -c 'import torch, numpy, pyarrow, PIL, omegaconf, safetensors, rlinf, openpi'
+cd pi05_recovery_pair
+```
+
+本机必须有原始few-shot模型、norm/tokenizer资产，以及三个完整数据目录：
+
+```text
+$PAIR_DATA_ROOT/
+  models/RLinf-Pi05-LIBERO-SFT/
+    model.safetensors
+    physical-intelligence/libero/norm_stats.json
+  dataset_subsets/
+    pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot/
+    pi05_recovery_segmented/recovery_success20_segmented/
+    pi05_recovery_segmented/recovery_failure20_segmented/
+```
+
+这里需要**切分后的**恢复成功／失败库，并保留meta、selection、provenance和动作映射。
+失败库用于复用四类分类和提取其中VLA正片段，其负段不用于本阶段训练。
+只有“专家40＋自主20＋完整恢复20”不能替代这套输入。
+跨机器重新建索引，不直接使用含A800绝对路径的索引。
+
+## 2. 配置路径、batch和预算
+
+```bash
+cp scripts/positive_fm.env.example scripts/my.local.env
+# 编辑下面三处配置，然后加载机器配置：
+source scripts/my.local.env
+nvidia-smi
+```
+
+| 文件 | 要改什么 |
+|---|---|
+| `scripts/my.local.env` | 本机数据根目录、原始模型/norm路径、新输出目录、GPU号和进程数 |
+| `configs/data_sources.example.json` | 三个数据目录及预期来源数量；相对路径以PAIR_DATA_ROOT为根 |
+| `configs/libero_pi05_positive_fm.json` | 学习率、全局batch、microbatch、更新预算 |
+
+当前参数：lr=1e-5、FM全局batch64、VLA:CAP约3:1、每卡microbatch1、梯度裁剪1.0，
+`pair_batch=0`、`eta=0`。原生FM随机采样时间与噪声，监督流速度。
+
+**`fm_only_updates=100`只是当前配置的100次参数更新，不是50epoch。**
+采样有放回且按VLA:CAP比例抽样，不保证一轮把每个窗口恰好用一次。
+正式训练前要在JSON中填好所需更新预算；本轮不擅自改成50epoch。
+每50步保存，默认保留最新3份，可通过`PAIR_SAVE_EVERY`和`PAIR_KEEP_LAST`调整。
+
+prepare会冻结一份参数快照到`$PAIR_RUN/algorithm.json`，后续训练使用快照。
+因此先改配置，再prepare；不要训练中改数据／预算后直接续跑。
+当前默认每卡allocator上限17GiB，另要求4GiB空闲余量；通过`PAIR_TRAIN_MEMORY_GIB`调整。
+先检查GPU，脚本不kill或迁移其他进程。CUDA/NCCL额外开销不包含在allocator上限内。
+
+## 3. 构建库、筛选正片段、准备全train索引
+
+```bash
+mkdir -p "$(dirname "$PAIR_RUN")"
+bash scripts/run_positive_fm_pipeline.sh prepare > "$PAIR_RUN.prepare.log" 2>&1
+```
+
+该阶段依次做：已有分类建库→构建窗口→数值候选→指定单卡提取冻结视觉特征→
+CAP成功后缀准入→源感知FM尾部处理→`--all-train`→原数据对齐审计。
+**它不启动训练，也不做负向配对。**
+
+当前这批输入结果应为1007正窗口，全部train：9885真实动作步＋185重复补齐位置＝10070。
+其中VLA825窗口、CAP182窗口。检查`$PAIR_RUN/prepared/report.json`：
+`split_policy=all_train_v1`、`validation_enabled=false`。原始数据不修改。
+
+## 4. 启动第一阶段训练
+
+单卡：在环境配置中选择空闲物理卡，如`CUDA_VISIBLE_DEVICES=2`、`NPROC_PER_NODE=1`。
+
+```bash
+bash scripts/run_positive_fm_pipeline.sh train > "$PAIR_RUN/train.log" 2>&1
+```
+
+单机16卡时，先确认这些卡都可用：
+
+```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+export NPROC_PER_NODE=16
+bash scripts/run_positive_fm_pipeline.sh train > "$PAIR_RUN/train.log" 2>&1
+```
+
+全局batch仍是64，不自动乘以16；每卡分片及梯度累积由训练器完成，不额外套DDP。
+上面是单机多卡命令，不是多节点命令。希望后台运行时，用下列命令替代前台train命令：
+
+```bash
+screen -dmS pi05_stage1 bash -c \
+  'exec bash scripts/run_positive_fm_pipeline.sh train > "$PAIR_RUN/train.log" 2>&1'
+screen -r pi05_stage1
+# Ctrl-A，再按D：离开查看但保持运行
+```
+
+训练输出位于`$PAIR_RUN/training/`：`metrics.jsonl`记录FM loss/梯度，无validation项；
+`run.json`应显示`validation_enabled=false`；`update_*.pt`保存断点。
+正常预算结束的`status.json`为`state=stopped`。
+
+需先做1步短训时，在新运行目录prepare后设置`export PAIR_MAX_UPDATES=1`，再执行train。
+随后继续同一运行必须显式恢复：
+
+```bash
+unset PAIR_MAX_UPDATES
+export PAIR_RESUME="$PAIR_RUN/training/update_000001.pt"
+bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1
+```
+
+不能把旧保留划分资产的checkpoint直接resume到当前全train资产；恢复会校验数据、基座与目标版本。
+
+## 5. 导出第一阶段模型
+
+选择实际存在的checkpoint；100只是默认预算示例：
+
+```bash
+export PAIR_EXPORT_CHECKPOINT="$PAIR_RUN/training/update_000100.pt"
+bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
+```
+
+结果为`$PAIR_RUN/exported/full_weights.pt`，需要原始基座、CPU内存和约7GB额外权重磁盘。
+部署还要保留同一norm/tokenizer与模型配置，并使用本版加载修复，避免FP32层被中间BF16转换舍入。
+第一阶段到此结束；不会自动接第二阶段或运行LIBERO评测。
+
+## 当前已完成与未执行的部分
+
+- A800已生成`outputs/positive_fm_all_train_20261031_v1/`并审计1007窗口，动作和mask与旧资产精确一致。
+- CPU完整回归89项通过；阶段脚本有命令串联测试，验证prepare不启动训练及单机多卡参数。
+- 此前GPU0/GPU2的真实短更新、断点恢复、导出重载与推理检查通过，但使用的是旧保留划分资产。
+- 未启动当前全train资产的正式长训，未实测H100单机16卡，也未完成LIBERO成功率评测。
+
+更详细的目录说明和故障处理见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)，历史验证记录见
+[VALIDATION.md](VALIDATION.md)。本README是本次第一阶段的首要入口。

@@ -9,7 +9,8 @@
 [VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
 新目录有自己的配置、数据要求和命令，不会自动接入根目录的50-epoch流程。
 
-**当前全量正向FM流程**请直接读
+**本次只运行第一阶段正向FM**，请先读
+[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。完整操作细节见
 [RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)：
 `cd pi05_recovery_pair`，配置`scripts/positive_fm.env.example`，再分阶段执行
 `scripts/run_positive_fm_pipeline.sh prepare|train|export`。

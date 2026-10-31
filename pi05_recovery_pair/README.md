@@ -3,7 +3,8 @@
 这是用户 12 点方案的一版独立 PyTorch 实现。位于新目录，不修改已有 CAP-X、
 RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)。
 
-当前版本从建库到训练的完整操作，请先读 **[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)**。
+本次只运行第一阶段，请先读 **[README_STAGE1.md](README_STAGE1.md)**。
+完整参数、目录与故障处理另见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)。
 入口：`scripts/run_positive_fm_pipeline.sh prepare|train|export`，机器配置模板：
 `scripts/positive_fm.env.example`。README后半保留旧pair实验，不属于当前纯FM流程。
 

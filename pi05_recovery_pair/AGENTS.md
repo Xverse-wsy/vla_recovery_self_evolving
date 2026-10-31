@@ -1,9 +1,10 @@
 # Recovery pair experiment: handoff
 
-Read RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independent
+Read README_STAGE1.md, RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independent
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
+- Current scope: stage 1 only. Do not implement or start stage 2/pair training.
 - Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
   admitted positive_pool, uses native FM only and no negative/pair branch. Use
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
