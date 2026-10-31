@@ -10,7 +10,7 @@ RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)�
 
 ## 当前纯正向 FM 版本（2026-10-31）
 
-最新方案先仅训练现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，
+最新方案训练原始专家40＋现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，
 监督速度方向；没有实现单时间点clean-action吸引／排斥，也不启动该训练分支。
 真实RLinf模型的FM直接调用上游`compute_loss`的联合prefix/suffix前向；冻结仍由参数的
 requires_grad控制。缓存前缀只用于采样分支，不用它替代原生FM前向。掩码及逐窗口平均
@@ -18,6 +18,7 @@ requires_grad控制。缓存前缀只用于采样分支，不用它替代原生F
 
 | 来源 | H=10的尾部处理 |
 | --- | --- |
+| 原始专家40 | 逐帧起点，尾部重复最后真实动作，重复动作参与FM监督 |
 | vla_progress_candidate：失败／被接管父轨迹的VLA中途正向片段 | 不足10个真实动作的起点舍弃，不补齐，不跨入错误片段 |
 | autonomous_episode_success：完整自主成功 | 尾部重复最后真实动作补齐，补齐动作也参与FM监督 |
 | 已通过现有匹配的CAP成功后缀 | 同上；仍限制在最早匹配点到同一成功程序段结束 |
@@ -28,12 +29,13 @@ requires_grad控制。缓存前缀只用于采样分支，不用它替代原生F
 完整自主成功与已准入CAP后缀则保留到最后一帧起点，用最后真实动作补齐。
 --legacy-sparse仅用于历史复现；当前默认training_policy=positive_fm_dense_source_tail_v2。
 `valid_mask`包含成功末动作的重复监督；`real_action_mask`单独标识真实记录部分。
-模型的25维填充始终不参与loss。原始专家40条不会自动加入当前正池。
+模型的25维填充始终不参与loss。原始专家40由--expert-dataset显式加入FM正池，不进入匹配库。
 
 ```bash
 python -m recovery_pair prepare-positive-fm \
   --admission /path/to/completed_success_admission \
   --config configs/libero_pi05_positive_fm.json --all-train \
+  --expert-dataset /path/to/rlinf_pi05_libero_fewshot40_20261021 \
   --output /path/to/new_positive_fm_prepared
 python -m recovery_pair audit --prepared /path/to/new_positive_fm_prepared
 # 可选全量原数据对齐检查（CPU，无需加载模型）：
@@ -56,10 +58,10 @@ CUDA_VISIBLE_DEVICES=0 python -m recovery_pair train \
 ```
 
 多卡可使用后文torchrun入口并保留`--mode fm_only`。沿用lr1e-5、FM全局batch64、
-VLA:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
+（专家＋VLA）:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
 config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认上限，
 **不表示数据遍历50个epoch**；正式预算通过该字段设置。最新要求使用`--all-train`，
-把现有已准入范围逐帧展开的9692个窗口全部用于训练，不留验证／测试集，自动关闭验证及验证早停；
+把已准入范围与专家40逐帧展开的16324个窗口全部用于训练，不留验证／测试集，自动关闭验证及验证早停；
 保留checkpoint保存规则。原split写入fm_original_split追溯，原匹配结果与后缀范围不变，
 不重新放宽匹配或额外接收CAP片段。旧资产保留，新资产须新建输出并从基座启动新训练。
 未授权启动正式训练。旧pair配置与数据保留，可独立做对照；新FM资产禁止用于pair模式。
@@ -228,8 +230,8 @@ CAP 恢复成功、CAP 恢复失败。`training_quality` 从 `bank_class` 读取
 自主20条通过 `--autonomous-dataset` 读取，`controller=VLA`，一条完整原 episode 保持同一ID。
 自主成功的有效窗口通过原分类作为正标签。两个入口均使用 canonical_task_index
 作为任务编号，避免将旧日志的评测列表编号与 LIBERO 官方任务编号混淆。
-原始专家40不伪装成 VLA 状态；如要额外加入专家 FM，
-需明确增加 expert 角色与采样规则，本版没有悄悄加入。
+原始专家40通过--expert-dataset加入FM，controller=expert、D_expert_positive。
+不伪装成VLA状态，不加入四类匹配库；每批CAP配额保持16，其余48从专家与VLA合并窗口池抽取。
 
 ```bash
 python -m recovery_pair libraries --manifest manifest.jsonl \

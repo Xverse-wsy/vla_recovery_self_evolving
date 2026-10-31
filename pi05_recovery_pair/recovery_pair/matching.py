@@ -100,6 +100,8 @@ class FrozenMatcher:
         self.config = config
         for record in records:
             record.validate()
+            if record.controller == 'expert':
+                raise ValueError('Expert demonstrations are FM training-only; keep them out of matching banks')
         self.records = {r.sample_id: r for r in records}
         if len(self.records) != len(records):
             raise ValueError('Duplicate sample IDs')

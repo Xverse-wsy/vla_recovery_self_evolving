@@ -554,3 +554,38 @@ A800物理GPU0输出outputs/dense_fm_gpu0_20261031_v1/：
 - action expert确实更新，冻结参数逐张量SHA前后相同；峰值allocated10.57383GiB。
 - 141.44秒结束，screen正常退出。本次未重新导出/重载、未跑长期预算、H100/16卡或LIBERO。
   旧稀疏版导出重载报告仅作为历史证据，不冒充逐帧版新实测。
+
+
+## 原始专家40加入第一阶段FM（2026-10-31）
+
+用户纠正本轮应包含原始专家40，现通过--expert-dataset显式加入，而不是冒充VLA rollout。
+默认阶段脚本从PAIR_EXPERT_DATASET读取原fewshot40目录，按episodes.json的原始稀疏ID读取
+40个不同任务的40条轨迹；controller=expert、D_expert_positive、expert_training_only=true。
+四类匹配库、VLA参考和CAP准入后缀保持不变，FrozenMatcher明确拒绝expert记录。
+完整专家轨迹逐帧构造H=10窗口，末动作可重复监督；VLA中途不足H的起点仍不生成。
+
+- 原专家共6632帧/窗口；与旧9692窗口合并后16324窗口，全部train。
+  分类为专家6632、VLA中途4727、自主成功3232、CAP成功1733。
+- 共114个正向控制段（新增40专家），CAP仍为原14个后缀；无negative/pair/validation。
+- 去重真实帧16684；窗口真实动作监督159910＋重复位置3330＝163240。
+- 专家原记录fps10保留source.recorded_hz与原记录时间；基座OSC命令/20Hz部署配置保持，
+  不插帧、重采样、旋转图像或额外delta。source metadata SHA审计保留原选择与任务指令。
+- FM64保留CAP16的配额；其他48从专家＋VLA合并窗口池均匀有放回抽取。
+  vla_fraction=.75保留兼容字段名，但此版本含义为非CAP比例，不固定专家/VLA各自配额。
+  无专家时采样顺序保持原行为；专家库禁止送入pair模式。
+- CPU回归96项通过，覆盖稀疏ID、逐帧观测/动作、尾部重复、元数据篡改、专家角色拒绝入匹配、
+  混合batch配额、采样恢复和阶段脚本传参；Python/Bash语法和Git diff检查通过。
+
+A800资产outputs/positive_fm_expert40_dense_all_train_20261031_v1/，SHA256：
+6a4d0f8d59b840285243603f8801df9281b8792f7a372beb0ca3dc211ee4248f。
+16324窗口逐条对照114份原Parquet：状态、观测引用、动作、归一化与边界对齐，真实动作误差0。
+另外将旧9692个rollout窗口与新池对应窗口逐项比较，所有动作数组、mask、起点观测、事件
+和已准入范围精确相同；原索引SHA不变。结果rollout_comparison.json保存于下述GPU验证目录。
+
+A800物理GPU0：outputs/expert40_dense_fm_gpu0_20261031_v1/。
+启动空闲46571MiB，allocator cap17GiB并留4GiB余量。原专家完整H窗口和含重复尾部窗口的
+native compute_loss前向/梯度检查通过，元素loss最大误差0；梯度有限非零且冻结VLM无梯度。
+从最初RLinf few-shot基座做1次FM64/micro1更新；实际首批专家21、VLA27、CAP16。
+loss0.16825150414456402，裁剪前梯度范数0.9259753227233887，冻结参数SHA前后相同、expert参数更新。
+峰值allocated10.57383GiB，146.71秒完成，screen正常退出、显存恢复；未启动长训或LIBERO。
+本次未重做视觉匹配/导出重载；不以历史报告声称新专家版已在H100/16卡跑过。

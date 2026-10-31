@@ -14,7 +14,8 @@
 [RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)：
 `cd pi05_recovery_pair`，配置`scripts/positive_fm.env.example`，再分阶段执行
 `scripts/run_positive_fm_pipeline.sh prepare|train|export`。
-它使用切分后的正片段和匹配成功的CAP后缀，全部用于训练；不使用专家40，也不是下方A60/B80配方。
+它使用原始专家40、VLA正片段和匹配成功的CAP后缀，全部用于训练；专家不进入匹配库。
+当前16324个逐帧窗口，VLA中途片段不补齐；这与下方A60/B80配方分别配置。
 
 This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets

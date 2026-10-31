@@ -11,7 +11,10 @@ class EpisodeEventSampler:
         self.records = {r.sample_id: r for r in records}
         self.positive = {owner: [r.sample_id for r in records if r.split == split and
                                 r.training_quality == 'positive' and r.controller == owner]
-                         for owner in ['VLA', 'code']}
+                         for owner in ['VLA', 'code', 'expert']}
+        # Expert provenance stays separate; preserve the existing code quota and
+        # draw remaining slots uniformly from the combined expert/VLA window pool.
+        self.non_code = self.positive['VLA'] + self.positive['expert']
         self.by_episode = defaultdict(lambda: defaultdict(list))
         for pair in pairs:
             if pair['split'] == split:
@@ -24,8 +27,10 @@ class EpisodeEventSampler:
         batch = min(config.pair_batch, len(self.visits))
         self.nominal_updates = (math.ceil(len(self.visits) * config.max_episode_reuses / batch)
                                 if batch else config.fm_only_updates)
-        if not self.positive['VLA']:
-            raise ValueError('Need VLA positive windows from existing segment classes or explicit labels')
+        if not self.non_code:
+            raise ValueError('Need VLA or expert positive windows')
+        if self.positive['expert'] and (pairs or config.pair_batch or config.eta):
+            raise ValueError('Expert FM pool is supported only with the positive-only configuration')
 
     @property
     def done(self):
@@ -52,7 +57,7 @@ class EpisodeEventSampler:
             self.visits[episode] += 1
         ordinary = self.config.fm_batch - len(references)
         n_code = round(ordinary * (1 - self.config.vla_fraction)) if self.positive['code'] else 0
-        fm = [self.rng.choice(self.positive['VLA']) for _ in range(ordinary - n_code)]
+        fm = [self.rng.choice(self.non_code) for _ in range(ordinary - n_code)]
         fm += [self.rng.choice(self.positive['code']) for _ in range(n_code)]
         fm += references
         self.rng.shuffle(fm)

@@ -25,6 +25,8 @@ PAIR_RUN=$("$PAIR_PYTHON" -c 'import pathlib,sys;print(pathlib.Path(sys.argv[1])
 case "$PAIR_STAGE" in
 prepare)
   : "${PAIR_VISION_GPU:?Select one physical GPU for frozen image features}"
+  PAIR_EXPERT_DATASET=${PAIR_EXPERT_DATASET:-$PAIR_DATA_ROOT/dataset_subsets/rlinf_pi05_libero_fewshot40_20261021}
+  test -f "$PAIR_EXPERT_DATASET/episodes.json"
   PAIR_SOURCES=${PAIR_SOURCES:-configs/data_sources.example.json}
   PAIR_CONFIG=${PAIR_CONFIG:-configs/libero_pi05_positive_fm.json}
   # Validate paths/config before creating a run; preserve input files.
@@ -62,7 +64,8 @@ PY
     "${PAIR_VISION_MEMORY_GIB:-8}" "${PAIR_VISION_BATCH:-2}"
   "$PAIR_PYTHON" -u -m recovery_pair prepare-positive-fm \
     --admission "$PAIR_RUN/matching/admission" --config "$PAIR_RUN/algorithm.json" \
-    --all-train --output "$PAIR_RUN/prepared"
+    --all-train --expert-dataset "$PAIR_EXPERT_DATASET" --expected-expert-episodes 40 \
+    --output "$PAIR_RUN/prepared"
   "$PAIR_PYTHON" -u -m recovery_pair audit --prepared "$PAIR_RUN/prepared" \
     --source-norm-stats "$PAIR_NORM_STATS"
   ;;

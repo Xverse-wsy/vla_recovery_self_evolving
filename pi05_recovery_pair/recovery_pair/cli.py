@@ -53,6 +53,8 @@ def main():
         p.add_argument('--'+arg,required=True)
     p.add_argument('--all-train',action='store_true',help='All admitted positives train; no heldout/early stopping')
     p.add_argument('--legacy-sparse',action='store_true',help='Reproduce historical sparse training starts')
+    p.add_argument('--expert-dataset',help='Original selected expert dataset with episodes.json; FM training only')
+    p.add_argument('--expected-expert-episodes',type=int,default=40)
     p=subs.add_parser('audit')
     p.add_argument('--prepared',required=True)
     p.add_argument('--source-norm-stats',help='Also compare source-aware FM windows against original Parquet and normalization')
@@ -126,7 +128,8 @@ def main():
     elif args.command=='prepare-positive-fm':
         from .positive_fm import prepare_positive_fm
         result=prepare_positive_fm(args.admission,Config.load(args.config),args.output,
-                                   all_train=args.all_train,dense=not args.legacy_sparse)
+            all_train=args.all_train,dense=not args.legacy_sparse,expert_dataset=args.expert_dataset,
+            expected_expert_episodes=args.expected_expert_episodes)
     elif args.command=='audit':
         records,pairs,digest=audit_prepared(args.prepared)
         result=dict(windows=len(records),pairs=len(pairs),artifact_sha256=digest)

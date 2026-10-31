@@ -11,12 +11,22 @@ CAP-X code, RLinf code or old training configs to run it.
 - Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
   admitted positive_pool, uses native FM only and no negative/pair branch. Use
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
-  suffix scope; no expert40 is implicitly added. Latest request: dense TRAINING starts
+  suffix scope. Latest user correction: INCLUDE the original expert40 via --expert-dataset
+  AFTER matching, with controller=expert/D_expert_positive. Experts NEVER enter VLA
+  banks or matching. FM code quota stays16/64; other48 uniformly draw from expert+VLA.
+  Expert terminal tails may repeat; intermediate VLA tails still MUST NOT pad.
+  Source recorded fps10 is preserved separately from native LIBERO control_hz20; no resampling.
+  Use new prepared/training directories; no resume of old no-expert artifacts.
+  Latest request: dense TRAINING starts
   every frame inside the SAME admitted positive scopes. Matching stays state_stride=10;
   never densify or redo matching to implement dense training. Keep original input_manifest
   and successful suffix provenance. No padding of intermediate VLA positive tails.
   New policy positive_fm_dense_source_tail_v2; use a new output, no old sparse resume.
-  Current dense artifact: 9692 all-train windows, 10052 unique real frames; 93 CPU tests pass.
+  Historical no-expert dense artifact: 9692 all-train windows, 10052 unique real frames.
+  Current expert40 artifact: 16324 windows, 16684 unique real frames; 96 CPU tests pass.
+  expert40_dense_fm_gpu0_20261031_v1: expert full/tail native FM probes and ONE mixed
+  update passed (expert21/VLA27/code16), frozen VLM unchanged, peak allocated10.57GiB.
+  All original9692 rollout windows were compared exactly unchanged in actions/masks/observations/scope.
   A800 GPU0 dense_fm_gpu0_20261031_v1: three native FM gradient probes and ONE update
   passed, frozen weights unchanged, peak allocated10.57GiB. No new dense export/reload.
   Latest user override: prepare with --all-train. Move ALL already-admitted positives

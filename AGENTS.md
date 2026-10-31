@@ -12,7 +12,7 @@ FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`D
 本次只做第一阶段，先读pi05_recovery_pair/README_STAGE1.md；不实施第二阶段。
 当前纯FM全流程入口：pi05_recovery_pair/RUN_POSITIVE_FM.md，环境模板
 scripts/positive_fm.env.example，阶段脚本scripts/run_positive_fm_pipeline.sh prepare|train|export。
-prepare只建库匹配审计，train才显式训练；原始专家40不加入，全部已准入正窗口用于训练。
+prepare只建库匹配审计，train才显式训练；原始专家40明确加入FM训练，全部正窗口用于训练；expert不进入匹配。
 当前已在A800完成建库、视觉、成功后缀入池及VLA负片段完整匹配统计；40个负片段中
 21个状态匹配、15个可配对（train12/validation2/test1）。真实pair训练和匹配准确率
 尚未完成。数据、模型、图像缓存、已安装环境和私有凭据不随代码提交。
@@ -32,9 +32,11 @@ FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训
 禁止在旧策略输出目录静默resume，须用新输出目录。
 
 最新逐帧版：匹配state_stride=10不变，训练在原已准入正向范围内逐帧滑动。
-9692个窗口（VLA中途4727、自主成功3232、CAP1733），全部train；CAP仍为原14个后缀。
-VLA中途不足完整H=10的起点舍弃，不补齐；完整自主成功/CAP成功尾部允许重复末动作监督。
-使用新的prepared/training输出目录，不resume旧稀疏checkpoint。此前1007窗口实测属于历史版本。
+16324个窗口（专家6632、VLA中途4727、自主成功3232、CAP1733），全部train；CAP仍为原14个后缀。
+VLA中途不足完整H=10的起点舍弃，不补齐；完整专家/自主成功/CAP成功尾部允许重复末动作监督。
+使用新的prepared/training输出目录，不resume旧不含专家或稀疏checkpoint。此前1007/9692窗口实测属于历史版本。
+专家路径用PAIR_EXPERT_DATASET设置，原始episodes.json选40个episode。
+FM64保留CAP16，其他48从专家＋VLA正池均匀抽取。
 
 ## 实验定义
 

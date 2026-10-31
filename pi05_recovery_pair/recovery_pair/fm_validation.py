@@ -103,7 +103,10 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         frozen_report = backend.freeze_report()
         status.write_text(json.dumps({'state': 'probing_native_fm'}))
         probes = []
-        for category in ('vla_progress_candidate', 'autonomous_episode_success', 'capx_completed'):
+        categories = ['vla_progress_candidate', 'autonomous_episode_success', 'capx_completed']
+        if any(r.controller == 'expert' for r in records):
+            categories.append('original_expert_demonstration')
+        for category in categories:
             candidates = [r for r in records if r.split == 'train' and
                           r.bank_label.get('source_category') == category and
                           (category == 'vla_progress_candidate' or r.source['fm_repeated_steps'] > 0)]

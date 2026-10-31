@@ -23,6 +23,10 @@ def tail_mode(record):
     if record.controller == 'code':
         return 'repeat_last'
     category = record.bank_label.get('source_category') or record.source.get('weak_category')
+    if record.controller == 'expert':
+        if category != 'original_expert_demonstration' or not record.source.get('expert_training_only'):
+            raise ValueError('Expert positives must preserve original demonstration provenance')
+        return 'repeat_last'
     if category == 'vla_progress_candidate':
         return 'full_real_only'
     if category == 'autonomous_episode_success':
@@ -101,7 +105,7 @@ def audit_source_alignment(records, norm_stats):
     import pyarrow.parquet as pq
     from .data import QuantileAssets, read_jsonl, quaternion_from_rotvec
     assets = QuantileAssets(norm_stats)
-    tables, original_hashes, manifest_hashes, manifest_entries = {}, {}, {}, {}
+    tables, original_hashes, manifest_hashes, manifest_entries, source_metadata_hashes = {}, {}, {}, {}, {}
     seen = set()
     repeated, max_action_error = 0, 0.
     for r in records:
@@ -143,7 +147,12 @@ def audit_source_alignment(records, norm_stats):
         if original not in original_hashes:
             original_hashes[original] = sha256(original)
         if original_hashes[original] != r.source['original_action_sha256']:
-            raise ValueError('Original matched action payload changed')
+            raise ValueError('Original source action payload changed')
+        for path, digest in r.source.get('expert_source_metadata_sha256',{}).items():
+            if path not in source_metadata_hashes:
+                source_metadata_hashes[path] = sha256(path)
+            if source_metadata_hashes[path] != digest:
+                raise ValueError('Original expert source metadata changed')
         if r.source.get('fm_sampling_policy') == DENSE_POLICY:
             manifest = r.source['fm_source_manifest']
             if manifest not in manifest_hashes:
@@ -153,7 +162,8 @@ def audit_source_alignment(records, norm_stats):
                 raise ValueError('Original source manifest changed')
             entry = manifest_entries[manifest][r.source['segment_id']]
             step = row + entry['parent_start_step']
-            if (r.start_step != step or r.start_time_s != step/r.spec.control_hz or
+            hz = r.source.get('recorded_hz',r.spec.control_hz)
+            if (r.start_step != step or r.start_time_s != step/hz or
                     not np.array_equal(np.asarray(r.eef_position_m,np.float32),state[row,:3]) or
                     not np.allclose(r.eef_quaternion_xyzw,quaternion_from_rotvec(state[row,3:6]),atol=1e-7)):
                 raise ValueError('Dense start time or EEF state differs from source observation')
@@ -164,10 +174,13 @@ def audit_source_alignment(records, norm_stats):
         original_segment_boundaries_respected=True, normalization_sha256=assets.sha)
 
 
-def prepare_positive_fm(admission, config, output, *, all_train=False, dense=True):
+def prepare_positive_fm(admission, config, output, *, all_train=False, dense=True,
+                        expert_dataset=None, expected_expert_episodes=40):
     config.validate()
     if config.pair_batch != 0 or config.eta != 0:
         raise ValueError('Use the positive_fm config: pair_batch=0, eta=0')
+    if expert_dataset is not None and (not dense or not all_train):
+        raise ValueError('Expert demonstrations require dense positive-only --all-train preparation')
     previous = Path(admission).resolve()
     info = json.loads((previous / 'report.json').read_text())
     if info.get('state') != 'complete' or info.get('observation_policy') != OBSERVATION_POLICY:
@@ -191,6 +204,8 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
     out = Path(output).resolve()
     # Never create generated files inside any original dataset or admission output.
     inputs = [previous] + [Path(r.source['dataset']).resolve() for r in records if r.source.get('dataset')]
+    if expert_dataset is not None:
+        inputs.append(Path(expert_dataset).resolve(strict=True))
     if any(out == p or p in out.parents for p in inputs):
         raise ValueError('Output must be outside source/admission folders')
     out.mkdir(parents=True, exist_ok=False)
@@ -218,6 +233,15 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
                                          fm_split_policy='all_train_v1')
                     result.split = 'train'
                 accepted.append(result)
+        expert_records = []
+        if expert_dataset is not None:
+            from .expert_fm import expert_windows
+            norm_stats = records[0].source['normalization_asset']
+            expert_records = list(expert_windows(expert_dataset,config,norm_stats,out,
+                                                expected_episodes=expected_expert_episodes))
+            for result in expert_records:
+                result.source = dict(result.source,fm_original_split='train',fm_split_policy='all_train_v1')
+            accepted.extend(expert_records)
         if not any(r.split == 'train' and r.controller == 'VLA' for r in accepted):
             raise ValueError('No train VLA positives remain')
         audit_positive_fm(accepted, [], config)
@@ -243,13 +267,19 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
             validation_enabled=any(r.split == 'validation' for r in accepted),
             state_stride_unchanged=True, coverage_and_suffix_scope_unchanged=True,
             matching_state_stride=config.state_stride, training_start_stride=1 if dense else config.state_stride,
+            expert_episodes=len({r.episode_id for r in expert_records}),expert_windows=len(expert_records),
+            expert_dataset=str(Path(expert_dataset).resolve()) if expert_dataset is not None else None,
+            expert_in_matching=False,
+            fm_sampling_policy='code_quota_then_uniform_expert_plus_vla_windows_v1',
             source_original_actions_unchanged=True, training_started=False,
             fm_only_updates=config.fm_only_updates,
-            note='Matching/suffix scopes unchanged; dense training starts every frame inside admitted positive scopes. Intermediate VLA requires full real H actions; successful tails repeat and ARE supervised. No pair branch or expert40 added.')
+            note='Matching/suffix scopes unchanged; dense starts inside admitted positives plus explicitly selected expert demonstrations. Intermediate VLA requires full real H actions; successful/expert tails repeat and ARE supervised. Experts never enter matching. No pair branch.')
         if dense:
             report.update(supervision_counts(accepted))
             scopes = read_jsonl(out/'dense_scopes.jsonl')
+            expert_scopes = read_jsonl(out/'expert_scopes.jsonl') if expert_records else []
             report.update(admitted_positive_scopes=len(scopes),
+                expert_positive_scopes=len(expert_scopes),total_positive_scopes=len(scopes)+len(expert_scopes),
                 admitted_cap_success_segments=sum(s['controller']=='code' for s in scopes),
                 excluded_intermediate_tail_starts=sum(s['excluded_short_tail_starts'] for s in scopes
                                                      if s['tail_mode']=='full_real_only'))
@@ -273,9 +303,12 @@ def main():
     parser.add_argument('--all-train', action='store_true',
                         help='Use every already-admitted positive window for training; no heldout or early stopping')
     parser.add_argument('--legacy-sparse', action='store_true', help='Reproduce historical sparse training starts')
+    parser.add_argument('--expert-dataset', help='Original expert dataset with explicit episodes.json, training only')
+    parser.add_argument('--expected-expert-episodes', type=int, default=40)
     args = parser.parse_args()
     print(json.dumps(prepare_positive_fm(args.admission, Config.load(args.config), args.output,
-                                         all_train=args.all_train, dense=not args.legacy_sparse), indent=2))
+        all_train=args.all_train,dense=not args.legacy_sparse,expert_dataset=args.expert_dataset,
+        expected_expert_episodes=args.expected_expert_episodes), indent=2))
 
 
 if __name__ == '__main__':

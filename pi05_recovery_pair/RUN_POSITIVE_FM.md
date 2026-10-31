@@ -2,7 +2,7 @@
 
 这是当前默认操作入口；README 后半部分的负匹配、pair loss、校准实验命令不属于这次训练。
 此流程复用已切分的标签和程序边界，建立四类库，但训练只使用 VLA 正片段与匹配后纳入的
-CAP 成功后缀。原始专家40不加入；不调用CAP-X/API，不重新运行机器人仿真。
+CAP 成功后缀。原始专家40一并加入训练；不调用CAP-X/API，不重新运行机器人仿真。
 
 本机／A800是验证机器，迁移机器需重新生成带本机路径的索引。源码、依赖环境、数据和
 模型权重是四部分；只clone代码不能替代其余部分。
@@ -30,6 +30,7 @@ cd pi05_recovery_pair
     model.safetensors
     physical-intelligence/libero/norm_stats.json
   dataset_subsets/
+    rlinf_pi05_libero_fewshot40_20261021/  # 保留episodes.json和原始稀疏episode编号
     pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot/
     pi05_recovery_segmented/recovery_success20_segmented/
     pi05_recovery_segmented/recovery_failure20_segmented/
@@ -46,6 +47,7 @@ cd pi05_recovery_pair
    数据相对路径以 `PAIR_DATA_ROOT` 为根。可以复制成自己的JSON文件。
    当前完整数据预期四类段数为 VLA正60、VLA负40、CAP正20、CAP负362；
    输入版本不同应先核对来源，不能用删除校验掩盖缺数据。
+   专家路径在scripts/my.local.env中通过PAIR_EXPERT_DATASET设置，不写入匹配数据源JSON。
 2. `configs/libero_pi05_positive_fm.json`：学习率、batch、训练更新预算等。
 3. 复制并修改环境配置，填写机器路径、GPU和运行输出目录：
 
@@ -62,11 +64,14 @@ nvidia-smi
 |---|---:|---|
 | `fm_batch` | 64 | 全局逻辑batch，不因GPU增加而自动放大 |
 | `fm_micro_batch` | 1 | 每卡一次前向/反向的窗口数 |
-| `vla_fraction` | 0.75 | 每步VLA:CAP约3:1，随机有放回采样 |
+| `vla_fraction` | 0.75 | 每步（专家＋VLA）:CAP约3:1，随机有放回采样 |
 | `learning_rate` | 1e-5 | action expert与必要投影的学习率 |
 | `fm_only_updates` | 100 | 正式更新上限，**不是100epoch，也不是50epoch** |
 | `pair_batch` / `eta` | 0 / 0 | 必须保持0，关闭负分支 |
 | `horizon` / `action_dim` | 10 / 32 | 动作窗口长度与模型动作维度，环境7维有效 |
+
+FM64时保留CAP16的配额；其余48从专家与VLA合并窗口池中均匀有放回抽取。
+专家作为独立expert来源可追溯，不冒充VLA，不参与数值/图像匹配，既有CAP后缀准入不变。
 
 `PAIR_SAVE_EVERY=50`、`PAIR_KEEP_LAST=3`控制保存；`PAIR_TRAIN_MEMORY_GIB=17`
 控制每卡PyTorch allocator上限，加载前每卡额外要求4GiB空闲余量。
@@ -91,8 +96,8 @@ bash scripts/run_positive_fm_pipeline.sh prepare > "$PAIR_RUN.prepare.log" 2>&1
 从最早匹配起点纳入同一成功程序的完整后缀；最后执行`--all-train`并逐窗审计原动作、
 状态和图像引用对齐。不会开始优化器更新。
 
-当前这批数据应得到9692个逐帧窗口，全部用于训练：中途VLA4727、自主成功3232、CAP1733。
-去重真实帧10052；重叠窗口95390个真实动作位置＋1530个重复位置＝96920个监督位置。
+当前加入专家后得到16324个逐帧窗口，全部用于训练：专家6632、中途VLA4727、自主成功3232、CAP1733。
+去重真实帧16684；窗口159910个真实动作位置＋3330个重复位置＝163240个监督位置。
 其中VLA中途窗口不足10真实步舍弃，自主成功和CAP成功尾部允许重复末动作，25维padding不监督。
 匹配依然state_stride=10，训练单独逐帧展开，training_start_stride=1；不重新放宽准入。
 输入版本变动时以实际报告为准。旧稀疏资产保留，不能将旧稀疏训练checkpoint直接续训到新资产。
@@ -107,6 +112,7 @@ bash scripts/run_positive_fm_pipeline.sh prepare > "$PAIR_RUN.prepare.log" 2>&1
 python -m recovery_pair prepare-positive-fm \
   --admission /path/to/completed_success_admission \
   --config configs/libero_pi05_positive_fm.json --all-train \
+  --expert-dataset /path/to/rlinf_pi05_libero_fewshot40_20261021 \
   --output /path/to/new_all_train_prepared
 python -m recovery_pair audit --prepared /path/to/new_all_train_prepared \
   --source-norm-stats "$PAIR_NORM_STATS"
@@ -206,8 +212,14 @@ screen正常退出，耗时329.59秒，输出outputs/stage1_readme_e2e_20261031_
 这不是H100安装验证、16卡实测、正式100更新长训或LIBERO任务成功率评测。
 详细结果见[VALIDATION.md](VALIDATION.md)。
 
-当前逐帧版本另生成outputs/positive_fm_dense_all_train_20261031_v2/，9692个窗口、
+此前不含专家的逐帧版本生成outputs/positive_fm_dense_all_train_20261031_v2/，9692个窗口、
 10052去重真实帧、96920个窗口动作监督位置；全部train，原始74段对齐最大误差0。
 匹配结果未重做，CAP仍14个既定后缀。CPU回归93项通过。
 逐帧版另在A800 GPU0完成三类真实原生FM梯度检查与1次FM64更新，峰值allocated10.57GiB，
 冻结VLM SHA前后不变；输出outputs/dense_fm_gpu0_20261031_v1/。这次未重复导出/重载。
+
+当前含专家版资产：outputs/positive_fm_expert40_dense_all_train_20261031_v1/，16324窗口。
+已逐窗对照114个原Parquet（最大真实动作误差0），旧9692个rollout窗口的动作、mask、观测和范围精确不变。
+96项CPU测试通过。GPU0的专家完整/补齐窗口原生FM梯度检查与一次真实更新通过；首批expert21/VLA27/code16，
+冻结VLM不变，峰值allocated10.57GiB，输出outputs/expert40_dense_fm_gpu0_20261031_v1/。
+没有启动正式长训、重新匹配、导出重载或LIBERO评测。

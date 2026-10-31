@@ -181,3 +181,23 @@ pair mask 是正负有效mask∩本实验负类错误范围∩可比较维度，
 
 prepared 中每个pair保存完整正负起点、程序与动作映射源、mask、匹配距离、门槛及冻结库ID。
 训练前核查索引/配置/动作payload校验和，防止修改资产后继续旧run。
+
+## 原始专家40的训练专用导入
+
+使用prepare-positive-fm --all-train --expert-dataset PATH，默认要求episodes.json明确选择40个
+不同episode且每任务一条；不使用meta/info.json的全量1693条索引，也不重新编号。
+专家正标签保留controller=expert、bank_class=D_expert_positive、expert_training_only=true；
+label_basis=original_expert_demonstration。原四类匹配库不变；FrozenMatcher拒绝expert输入。
+expert_sources/input_manifest.jsonl与expert_scopes.jsonl追溯原Parquet、episode、动作行范围；
+源episodes/info/tasks/manifest/selection元数据哈希在构建与深审计时核对。
+专家逐帧滑窗，末尾重复最后真实动作且参与FM，25维模型padding不参与。
+
+沿用基座LIBERO OSC命令语义、归一化资产与20Hz部署配置；不对原示范插帧、重采样、旋转或额外delta。
+原专家集meta.fps=10单独保存到source.recorded_hz，start_time_s保留原记录时间；
+它与部署控制频率字段分开，不把原数据时间戳伪写成20Hz。
+模型训练读取原动作顺序，等价于原SFT逐帧构造H步窗口的方式。
+
+当前FM64保留CAP16的配额；48个非CAP位置从专家＋VLA正窗口合并池均匀抽取。
+vla_fraction是兼容字段名，加入专家后实际表示非CAP比例；专家/VLA不再各有固定配额。
+所有样本仍只走原生FM；expert不能作为负样本、匹配参考或pair目标。
+旧不含专家checkpoint不能直接resume到新数据资产。

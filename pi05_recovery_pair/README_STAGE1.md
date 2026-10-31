@@ -8,11 +8,12 @@
 从**最初的RLinf few-shot π0.5**初始化，冻结VLM，训练action expert和必要投影。
 正向监督包括：
 
+- 原始专家40条完整示范，按episodes.json的原始编号逐帧读取。
 - VLA完整自主成功轨迹。
 - 已切分出的VLA正常推进片段，包括最终失败或被CAP接管轨迹中的正片段。
 - 通过匹配筛选后，从最早匹配起点到同一CAP成功程序段结束的完整后缀。
 
-**不加入专家40；不训练VLA负片段或CAP失败片段。全部已纳入正窗口用于训练，
+**加入原始专家40；不训练VLA负片段或CAP失败片段。全部已纳入正窗口用于训练，
 不留验证集／测试集，不启用验证早停。**
 
 CAP准入只用公开任务指令、执行前本体状态和前视／腕部RGB。先数值粗筛，再用冻结的
@@ -22,7 +23,7 @@ CAP准入只用公开任务指令、执行前本体状态和前视／腕部RGB�
 训练起点改为逐帧滑动（training_start_stride=1）；匹配仍为state_stride=10，不重新匹配或扩大CAP准入范围。
 例如第1帧观测监督动作1～10，第2帧监督2～11，依此类推。
 动作窗口H=10，环境7维OSC动作填充到模型32维，沿用基座归一化资产，不额外转delta。
-VLA中途正片段的每个起点必须有完整10真实步，不够则丢弃该起点；完整自主成功／CAP成功后缀允许重复末动作
+VLA中途正片段的每个起点必须有完整10真实步，不够则丢弃该起点；原始专家／完整自主成功／CAP成功后缀允许重复末动作
 补齐，补齐部分参与FM监督。25个模型填充维度不参与loss。
 
 ## 1. 先准备环境、权重和数据
@@ -39,7 +40,7 @@ python -c 'import torch, numpy, pyarrow, PIL, omegaconf, safetensors, rlinf, ope
 cd pi05_recovery_pair
 ```
 
-本机必须有原始few-shot模型、norm/tokenizer资产，以及三个完整数据目录：
+本机必须有原始few-shot模型、norm/tokenizer资产，以及四个完整数据目录：
 
 ```text
 $PAIR_DATA_ROOT/
@@ -47,6 +48,7 @@ $PAIR_DATA_ROOT/
     model.safetensors
     physical-intelligence/libero/norm_stats.json
   dataset_subsets/
+    rlinf_pi05_libero_fewshot40_20261021/  # 保留episodes.json和原始稀疏episode编号
     pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot/
     pi05_recovery_segmented/recovery_success20_segmented/
     pi05_recovery_segmented/recovery_failure20_segmented/
@@ -68,15 +70,17 @@ nvidia-smi
 
 | 文件 | 要改什么 |
 |---|---|
-| `scripts/my.local.env` | 本机数据根目录、原始模型/norm路径、新输出目录、GPU号和进程数 |
+| `scripts/my.local.env` | 本机数据根目录、原始模型/norm路径、PAIR_EXPERT_DATASET、新输出目录、GPU号和进程数 |
 | `configs/data_sources.example.json` | 三个数据目录及预期来源数量；相对路径以PAIR_DATA_ROOT为根 |
 | `configs/libero_pi05_positive_fm.json` | 学习率、全局batch、microbatch、更新预算 |
 
-当前参数：lr=1e-5、FM全局batch64、VLA:CAP约3:1、每卡microbatch1、梯度裁剪1.0，
-`pair_batch=0`、`eta=0`。原生FM随机采样时间与噪声，监督流速度。
+当前参数：lr=1e-5、FM全局batch64、（专家＋VLA）:CAP约3:1、每卡microbatch1、梯度裁剪1.0，
+`pair_batch=0`、`eta=0`。每批16个CAP窗口，其余48个从专家＋VLA正窗口合并池中均匀抽取，
+不固定专家/VLA各占多少；所有抽样有放回。专家保留controller=expert，始终不参与匹配。
+原生FM随机采样时间与噪声，监督流速度。
 
 **`fm_only_updates=100`只是当前配置的100次参数更新，不是50epoch。**
-采样有放回且按VLA:CAP比例抽样，不保证一轮把每个窗口恰好用一次。
+采样有放回且按（专家＋VLA）:CAP比例抽样，不保证一轮把每个窗口恰好用一次。
 正式训练前要在JSON中填好所需更新预算；本轮不擅自改成50epoch。
 每50步保存，默认保留最新3份，可通过`PAIR_SAVE_EVERY`和`PAIR_KEEP_LAST`调整。
 
@@ -93,11 +97,11 @@ bash scripts/run_positive_fm_pipeline.sh prepare > "$PAIR_RUN.prepare.log" 2>&1
 ```
 
 该阶段依次做：已有分类建库→构建窗口→数值候选→指定单卡提取冻结视觉特征→
-CAP成功后缀准入→源感知FM尾部处理→`--all-train`→原数据对齐审计。
+CAP成功后缀准入→源感知FM尾部处理＋专家40逐帧导入→`--all-train`→原数据对齐审计。
 **它不启动训练，也不做负向配对。**
 
-当前这批输入逐帧生成9692个正窗口，全部train：VLA中途4727、自主成功3232、CAP1733。
-去重的真实动作帧10052；重叠窗口共有95390个真实动作监督位置，加1530个尾部重复位置，合计96920。
+当前加入专家后逐帧生成16324个正窗口，全部train：专家6632、VLA中途4727、自主成功3232、CAP1733。
+去重真实动作帧16684；窗口中159910个真实动作监督位置＋3330个尾部重复位置＝163240。
 CAP仍是既定14个成功程序后缀；VLA中途片段末尾9个不足完整H的起点均不生成，
 不会用末动作补齐。匹配与训练起点密度分开，不能将state_stride改为1来替代此流程。检查`$PAIR_RUN/prepared/report.json`：
 `split_policy=all_train_v1`、`validation_enabled=false`。原始数据不修改。
@@ -141,7 +145,7 @@ export PAIR_RESUME="$PAIR_RUN/training/update_000001.pt"
 bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1
 ```
 
-不能把旧稀疏资产或保留划分资产的checkpoint直接resume到当前逐帧全train资产；恢复会校验数据、基座与目标版本。
+不能把旧不含专家资产、稀疏资产或保留划分资产的checkpoint直接resume到当前逐帧全train资产；恢复会校验数据、基座与目标版本。
 
 ## 5. 导出第一阶段模型
 
@@ -158,13 +162,17 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 
 ## 当前已完成与未执行的部分
 
-- A800逐帧资产：`outputs/positive_fm_dense_all_train_20261031_v2/`，9692窗口，全部train。
-  按74个原始控制段逐条核对原Parquet，观测、动作、归一化和边界对齐，真实动作最大误差0。
-- CPU回归93项通过，覆盖逐帧起点、短段舍弃、VLA不补齐、CAP后缀锚点和局部标签／事件边界。
+- 当前含专家A800资产：`outputs/positive_fm_expert40_dense_all_train_20261031_v1/`，16324窗口，全部train。
+- 此前不含专家逐帧资产：`outputs/positive_fm_dense_all_train_20261031_v2/`，9692窗口。
+  旧版按74个原始控制段逐条核对原Parquet，观测、动作、归一化和边界对齐，真实动作最大误差0。
+- CPU回归96项通过，覆盖逐帧起点、短段舍弃、VLA不补齐、CAP后缀锚点和局部标签／事件边界。
 - 此前稀疏1007窗口版本的prepare→train(1更新)→export→精确重载／原生推理已通过，
   见历史`outputs/stage1_readme_e2e_20261031_v1/`；不能将其写成逐帧版的全流程新实测。
-- 逐帧版A800 GPU0短验证通过：三类原生FM/梯度检查＋1次FM64更新，冻结VLM不变，
+- 此前不含专家逐帧版A800 GPU0短验证通过：三类原生FM/梯度检查＋1次FM64更新，冻结VLM不变，
   峰值allocated10.57GiB；输出`outputs/dense_fm_gpu0_20261031_v1/`。未重新执行导出重载。
+- 当前含专家版GPU0验证通过：专家完整/补齐窗口的原生FM梯度检查＋1次混合FM64更新。
+  首批专家21、VLA27、CAP16，冻结VLM不变，峰值allocated10.57GiB。
+  原有9692个rollout窗口逐项比对完全不变；输出`outputs/expert40_dense_fm_gpu0_20261031_v1/`。
 - 正式100更新长训、H100单机16卡及LIBERO成功率评测尚未执行。
 
 更详细的目录说明和故障处理见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)，历史验证记录见

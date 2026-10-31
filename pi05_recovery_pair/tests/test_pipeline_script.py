@@ -15,6 +15,9 @@ def test_positive_pipeline_is_staged_and_uses_all_train_with_selected_gpus(tmp_p
     (checkpoint/'model.safetensors').touch()
     norm = root/'norm.json'
     norm.write_text('{}')
+    experts=root/'dataset_subsets/rlinf_pi05_libero_fewshot40_20261021'
+    experts.mkdir(parents=True)
+    (experts/'episodes.json').write_text('[]')
     sources = tmp_path/'sources.json'
     sources.write_text(json.dumps({'norm_stats':'norm.json','algorithm_config':'unused'}))
     log = tmp_path/'commands.jsonl'
@@ -54,6 +57,9 @@ elif 'prepare-positive-fm' in args:
     assert not any('train' in c['args'] for c in prepared_calls)
     assert prepared_calls[2]['gpus']=='2'
     assert '--all-train' in prepared_calls[4]['args']
+    assert '--expert-dataset' in prepared_calls[4]['args']
+    assert prepared_calls[4]['args'][prepared_calls[4]['args'].index('--expert-dataset')+1]==str(experts)
+    assert '--expert-dataset' not in prepared_calls[0]['args']  # not in matching banks
     copied=json.loads((Path(env['PAIR_RUN'])/'sources.json').read_text())
     assert copied['algorithm_config']==str(Path(env['PAIR_RUN'])/'algorithm.json')
     assert json.loads(sources.read_text())['algorithm_config']=='unused'

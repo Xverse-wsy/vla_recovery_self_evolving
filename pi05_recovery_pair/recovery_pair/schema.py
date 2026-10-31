@@ -83,6 +83,8 @@ class Window:
 
     @property
     def label_basis(self):
+        if self.controller == 'expert':
+            return 'original_expert_demonstration'
         return 'existing_segment_class' if self.bank_class else 'verified_local_actions'
 
     def pair_error_mask(self, payload=None):
@@ -93,10 +95,13 @@ class Window:
         return payload['trusted_error_mask'].copy()
 
     def validate(self):
-        if self.controller not in ("VLA", "code"):
-            raise ValueError("Controller must be VLA/code; experts must not be relabeled as autonomous VLA")
+        if self.controller not in ("VLA", "code", "expert"):
+            raise ValueError("Controller must be VLA/code/expert")
+        if self.controller == 'expert' and (self.bank_class != 'D_expert_positive' or
+                not self.source.get('expert_training_only') or self.source.get('state_only')):
+            raise ValueError('Expert demonstrations must be positive and explicitly training-only')
         if self.bank_class is not None:
-            expected = 'D_vla_' if self.controller == 'VLA' else 'D_code_'
+            expected = {'VLA':'D_vla_', 'code':'D_code_', 'expert':'D_expert_'}[self.controller]
             if self.bank_class not in (expected+'positive', expected+'negative'):
                 raise ValueError('Bank class disagrees with controller')
         if self.local_quality not in ("positive", "negative", "unknown"):
