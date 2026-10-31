@@ -7,7 +7,9 @@
 [pi05_recovery_pair/](pi05_recovery_pair/README.md)。其接手入口是
 [pi05_recovery_pair/AGENTS.md](pi05_recovery_pair/AGENTS.md)，当前规则和实测结果见
 [VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
-新目录有自己的配置、数据要求和命令，不会自动接入根目录的50-epoch流程。
+新目录有自己的配置、数据要求和命令，不会自动接入根目录的A60/B80流程。
+当前阶段1配置fm_epochs=50：全库每轮打乱无放回遍历，完整50轮；不固定来源配额。
+16324窗口、全局batch64时每轮256更新（尾批4）、合计12800更新。详见子目录README_STAGE1.md。
 
 **本次只运行第一阶段正向FM**，请先读
 [README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。完整操作细节见

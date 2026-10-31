@@ -32,7 +32,8 @@ class Config:
     fm_micro_batch: int = 1
     pair_micro_batch: int = 1
     max_episode_reuses: int = 50
-    fm_only_updates: int = 100
+    fm_only_updates: int = 100  # Legacy replacement sampler only when fm_epochs=None.
+    fm_epochs: int | None = None
     min_pair_steps: int = 3
     identical_action_tolerance: float = 1e-4
     shared_prefix_tolerance: float = 1e-4
@@ -49,6 +50,11 @@ class Config:
         position_m=0.01, rotation_deg=5.0))
 
     def validate(self, *, matching_ready=False):
+        if self.fm_epochs is not None:
+            if type(self.fm_epochs) is not int or self.fm_epochs < 1:
+                raise ValueError('fm_epochs must be a positive integer or null for legacy update sampling')
+            if self.pair_batch != 0 or self.eta != 0:
+                raise ValueError('Full positive epochs require pair_batch=0 and eta=0')
         if self.matching_policy != 'cap_success_to_vla_success_v1':
             raise ValueError('Unsupported matching policy')
         if self.cap_success_admission not in ('matched_window', 'segment_suffix'):

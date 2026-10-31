@@ -13,7 +13,18 @@ CAP-X code, RLinf code or old training configs to run it.
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
   suffix scope. Latest user correction: INCLUDE the original expert40 via --expert-dataset
   AFTER matching, with controller=expert/D_expert_positive. Experts NEVER enter VLA
-  banks or matching. FM code quota stays16/64; other48 uniformly draw from expert+VLA.
+  banks or matching. Latest override: fm_epochs=50, shuffled full positive-pool
+  permutations WITHOUT replacement. No source quota: each window once/epoch.
+  16324 windows/B64 -> 256 updates/epoch, last batch4; 12800 updates/50epochs.
+  Keep partial tails; actual global batch normalization, empty ranks join zero-grad SUM.
+  vla_fraction/fm_only_updates/max_episode_reuses inactive in epoch mode.
+  Latest verification:109 local CPU tests pass; all50 real-data sampling epochs
+  audited exactly once/window/epoch, unchanged actions/masks/start observations.
+  epoch50_fm_gpu0_20261031_v1:4 bounded native FM updates, uninterrupted/resume
+  final trainable hash AND all metrics EXACTLY equal, frozen unchanged;
+  all16324 windows/114Parquets source alignment error0; peak allocated12.542GiB.
+  Full50-epoch training and H100/16-rank real GPU runs were NOT executed.
+  Exact cursor/inventory checked on restart; use NEW prepared/run, no legacy resume.
   Expert terminal tails may repeat; intermediate VLA tails still MUST NOT pad.
   Source recorded fps10 is preserved separately from native LIBERO control_hz20; no resampling.
   Use new prepared/training directories; no resume of old no-expert artifacts.
@@ -38,8 +49,8 @@ CAP-X code, RLinf code or old training configs to run it.
   may repeat the last real action to H, and these repeats ARE supervised by FM.
   Keep model padding dimensions invalid; real_action_mask separately traces repeats.
   Source-aware prepared artifacts cannot be used by pair modes. Do not overwrite
-  the old matching libraries/payloads. fm_only_updates is an explicit update budget
-  (default100), not 50 dataset epochs. No formal training was authorized here.
+  the old matching libraries/payloads. Current explicit budget is fm_epochs=50.
+  Do not start formal training during this configuration/validation task.
   User subsequently authorized a bounded real GPU0 validation and pushing after it
   passes: python -m recovery_pair.fm_validation. Latest review runs two resumed
   and two uninterrupted FM updates and requires EXACT final-weight/metric parity,

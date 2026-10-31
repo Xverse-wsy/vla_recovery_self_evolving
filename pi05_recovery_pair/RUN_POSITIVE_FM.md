@@ -48,7 +48,7 @@ cd pi05_recovery_pair
    当前完整数据预期四类段数为 VLA正60、VLA负40、CAP正20、CAP负362；
    输入版本不同应先核对来源，不能用删除校验掩盖缺数据。
    专家路径在scripts/my.local.env中通过PAIR_EXPERT_DATASET设置，不写入匹配数据源JSON。
-2. `configs/libero_pi05_positive_fm.json`：学习率、batch、训练更新预算等。
+2. `configs/libero_pi05_positive_fm.json`：学习率、batch、训练epoch预算等。
 3. 复制并修改环境配置，填写机器路径、GPU和运行输出目录：
 
 ```bash
@@ -64,13 +64,17 @@ nvidia-smi
 |---|---:|---|
 | `fm_batch` | 64 | 全局逻辑batch，不因GPU增加而自动放大 |
 | `fm_micro_batch` | 1 | 每卡一次前向/反向的窗口数 |
-| `vla_fraction` | 0.75 | 每步（专家＋VLA）:CAP约3:1，随机有放回采样 |
+| `fm_epochs` | 50 | 每轮打乱全部训练窗口，无放回完整遍历50轮 |
 | `learning_rate` | 1e-5 | action expert与必要投影的学习率 |
-| `fm_only_updates` | 100 | 正式更新上限，**不是100epoch，也不是50epoch** |
+| `fm_only_updates` / `vla_fraction` | 旧兼容字段 | 当前epoch模式不使用更新上限或来源配额 |
 | `pair_batch` / `eta` | 0 / 0 | 必须保持0，关闭负分支 |
 | `horizon` / `action_dim` | 10 / 32 | 动作窗口长度与模型动作维度，环境7维有效 |
 
-FM64时保留CAP16的配额；其余48从专家与VLA合并窗口池中均匀有放回抽取。
+每个窗口每轮恰好训练一次，完整50轮；来源按实际窗口数量参与，不固定CAP配额。
+当前16324窗口、FM64：每轮256更新（尾批4），总12800更新、816200次窗口呈现。
+不丢弃/复制尾批、不跨轮拼批；loss除以实际全局窗口数。
+多卡共用相同全局排列再分片，尾批少于卡数时空rank参与零梯度归约。
+更改batch后预算自动为`fm_epochs * ceil(训练窗口数 / fm_batch)`；max_episode_reuses不控制本轮预算。
 专家作为独立expert来源可追溯，不冒充VLA，不参与数值/图像匹配，既有CAP后缀准入不变。
 
 `PAIR_SAVE_EVERY=50`、`PAIR_KEEP_LAST=3`控制保存；`PAIR_TRAIN_MEMORY_GIB=17`
@@ -79,7 +83,7 @@ CUDA上下文/NCCL有额外开销，allocator上限不是总显存硬隔离；�
 16卡时也默认FM64、micro1：每卡分到约4个窗口，梯度累积后做一次全局更新；不要再包DDP。
 
 脚本prepare会把算法JSON复制为`$PAIR_RUN/algorithm.json`，并重写来源副本引用它；后续阶段
-使用这一快照。要改学习率、batch或更新预算，**在prepare之前修改JSON**。
+使用这一快照。要改学习率、batch或epoch预算，**在prepare之前修改JSON**。
 恢复旧训练仅允许改变microbatch等明确支持项；换数据／目标／预算应开新运行目录。
 `split_fractions`保留给原库构建和既定匹配分组，**最终训练资产全部为train**，不是保留评测集。
 这保证重建既定匹配结果后再合并，不因跨原分组合并而额外放宽CAP准入。
@@ -170,10 +174,10 @@ bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1
 
 ## 5. 导出权重和检查输出
 
-选择实际存在的更新文件（若改预算或曾提前中断，不能照抄100）：
+选择实际存在的更新文件（以下12800对应16324窗口、全局batch64；改batch后按report预算选择）：
 
 ```bash
-export PAIR_EXPORT_CHECKPOINT="$PAIR_RUN/training/update_000100.pt"
+export PAIR_EXPORT_CHECKPOINT="$PAIR_RUN/training/update_012800.pt"
 bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 ```
 
@@ -194,13 +198,15 @@ $PAIR_RUN/
   prepared/training_pool.jsonl   # 全部train的FM正窗口
   training/run.json              # validation_enabled=false，验证窗口0
   training/metrics.jsonl         # 原生FM loss/梯度，没有validation项
-  training/status.json           # 正常预算结束时state=stopped
+  training/status.json           # reason=epochs_complete，epochs_completed=50，position_in_epoch=0
   training/update_*.pt           # 默认只保留最新3个
   exported/full_weights.pt
 ```
 
 `prepare`和`export`拒绝覆盖已有输出；失败后保留日志，排查原因再使用新目录。
 训练恢复用`PAIR_RESUME`，不要删除原数据或他人输出来绕过检查。
+正式运行保持`PAIR_MAX_UPDATES`为空；更新限制只用于短验证。
+当前数据完成后应有`updates=12800`、`samples_seen=816200`；metrics逐步记录epoch和轮内位置。
 本次不自动运行LIBERO；部署成功率评测属于单独阶段。
 
 ## 已验证范围
@@ -209,7 +215,7 @@ $PAIR_RUN/
 此前稀疏全train版本在A800 GPU0实际调用本脚本prepare、train、export，训练限制1次更新；
 从建库、冻结视觉匹配、1007窗口准备审计到完整权重导出、精确参数重载及原生推理均通过。
 screen正常退出，耗时329.59秒，输出outputs/stage1_readme_e2e_20261031_v1/。
-这不是H100安装验证、16卡实测、正式100更新长训或LIBERO任务成功率评测。
+这不是H100安装验证、16卡实测、正式50-epoch长训或LIBERO任务成功率评测。
 详细结果见[VALIDATION.md](VALIDATION.md)。
 
 此前不含专家的逐帧版本生成outputs/positive_fm_dense_all_train_20261031_v2/，9692个窗口、
@@ -223,3 +229,7 @@ screen正常退出，耗时329.59秒，输出outputs/stage1_readme_e2e_20261031_
 96项CPU测试通过。GPU0的专家完整/补齐窗口原生FM梯度检查与一次真实更新通过；首批expert21/VLA27/code16，
 冻结VLM不变，峰值allocated10.57GiB，输出outputs/expert40_dense_fm_gpu0_20261031_v1/。
 没有启动正式长训、重新匹配、导出重载或LIBERO评测。
+
+50轮采样版GPU0验证已通过：4次短更新，连续/恢复训练最终参数与日志完全一致，
+冻结VLM不变；16324窗口对齐原Parquet误差0，峰值allocated12.54GiB。
+结果：`outputs/epoch50_fm_gpu0_20261031_v1/report.json`。这不是正式50轮长训。

@@ -197,7 +197,10 @@ expert_sources/input_manifest.jsonl与expert_scopes.jsonl追溯原Parquet、epis
 它与部署控制频率字段分开，不把原数据时间戳伪写成20Hz。
 模型训练读取原动作顺序，等价于原SFT逐帧构造H步窗口的方式。
 
-当前FM64保留CAP16的配额；48个非CAP位置从专家＋VLA正窗口合并池均匀抽取。
-vla_fraction是兼容字段名，加入专家后实际表示非CAP比例；专家/VLA不再各有固定配额。
+当前fm_epochs=50；每轮独立打乱全部正窗口，无放回遍历，每个窗口每轮使用恰好一次。
+不固定来源配额；vla_fraction/fm_only_updates/max_episode_reuses仅兼容旧模式，epoch模式不使用。
+尾批保留实际数量，不丢弃、不复制、不跨轮；全局均值分母是实际窗口数。
+16324窗口、FM64时每轮256更新（尾批4），50轮12800更新、816200次窗口呈现。
+checkpoint保存epoch/轮内位置/累计窗口数/排序库存hash，恢复重建同一排列；旧随机模式checkpoint不能续训。
 所有样本仍只走原生FM；expert不能作为负样本、匹配参考或pair目标。
 旧不含专家checkpoint不能直接resume到新数据资产。

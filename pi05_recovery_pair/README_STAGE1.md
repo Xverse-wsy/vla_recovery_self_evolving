@@ -1,6 +1,6 @@
 # 第一阶段：正向片段 π0.5 FM 训练
 
-**本次只做第一阶段。**使用已有正向片段训练π0.5，沿用原生FM loss。
+**本次只做第一阶段，正式训练完整50个epoch。**使用已有正向片段训练π0.5，沿用原生FM loss。
 负片段不参与优化，不使用pair、吸引或排斥loss；第二阶段以后另做。
 
 ## 这次跑什么
@@ -72,16 +72,19 @@ nvidia-smi
 |---|---|
 | `scripts/my.local.env` | 本机数据根目录、原始模型/norm路径、PAIR_EXPERT_DATASET、新输出目录、GPU号和进程数 |
 | `configs/data_sources.example.json` | 三个数据目录及预期来源数量；相对路径以PAIR_DATA_ROOT为根 |
-| `configs/libero_pi05_positive_fm.json` | 学习率、全局batch、microbatch、更新预算 |
+| `configs/libero_pi05_positive_fm.json` | 学习率、全局batch、microbatch、epoch预算 |
 
-当前参数：lr=1e-5、FM全局batch64、（专家＋VLA）:CAP约3:1、每卡microbatch1、梯度裁剪1.0，
-`pair_batch=0`、`eta=0`。每批16个CAP窗口，其余48个从专家＋VLA正窗口合并池中均匀抽取，
-不固定专家/VLA各占多少；所有抽样有放回。专家保留controller=expert，始终不参与匹配。
+当前参数：lr=1e-5、FM全局batch64、每卡microbatch1、梯度裁剪1.0，
+`pair_batch=0`、`eta=0`、`fm_epochs=50`。每个epoch独立打乱全部正窗口，无放回完整遍历，
+每个窗口每轮恰好使用一次。专家保留controller=expert，始终不参与匹配。
 原生FM随机采样时间与噪声，监督流速度。
 
-**`fm_only_updates=100`只是当前配置的100次参数更新，不是50epoch。**
-采样有放回且按（专家＋VLA）:CAP比例抽样，不保证一轮把每个窗口恰好用一次。
-正式训练前要在JSON中填好所需更新预算；本轮不擅自改成50epoch。
+**正式训练完整50个epoch，不是100次随机更新。** 当前16324个窗口、全局batch64，
+每轮255个完整batch＋最后4个窗口，共256次更新；50轮共12800次更新、816200次窗口呈现。
+尾批不丢弃、不复制、不跨epoch拼批，loss按实际全局窗口数归一化。
+各来源权重由窗口数量决定，每批组成变化；不再固定CAP16配额。
+`vla_fraction`、`fm_only_updates`、`max_episode_reuses`仅兼容旧模式，当前epoch模式不使用。
+改变batch时更新数自动变为`50 * ceil(训练窗口数 / fm_batch)`，完整50遍的定义不变。
 每50步保存，默认保留最新3份，可通过`PAIR_SAVE_EVERY`和`PAIR_KEEP_LAST`调整。
 
 prepare会冻结一份参数快照到`$PAIR_RUN/algorithm.json`，后续训练使用快照。
@@ -134,7 +137,10 @@ screen -r pi05_stage1
 
 训练输出位于`$PAIR_RUN/training/`：`metrics.jsonl`记录FM loss/梯度，无validation项；
 `run.json`应显示`validation_enabled=false`；`update_*.pt`保存断点。
-正常预算结束的`status.json`为`state=stopped`。
+正常预算结束的`status.json`必须同时显示`reason=epochs_complete`、
+`epochs_completed=50`、`position_in_epoch=0`、`samples_seen=816200`（当前数据量）。
+`metrics.jsonl`逐次记录epoch、batch_in_epoch和samples_seen，方便检查真实遍历进度。
+正式运行保持`PAIR_MAX_UPDATES`为空；只有短验证才设置更新限制。
 
 需先做1步短训时，在新运行目录prepare后设置`export PAIR_MAX_UPDATES=1`，再执行train。
 随后继续同一运行必须显式恢复：
@@ -149,10 +155,10 @@ bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1
 
 ## 5. 导出第一阶段模型
 
-选择实际存在的checkpoint；100只是默认预算示例：
+选择实际存在的checkpoint；以下对应16324窗口、全局batch64的完整50轮：
 
 ```bash
-export PAIR_EXPORT_CHECKPOINT="$PAIR_RUN/training/update_000100.pt"
+export PAIR_EXPORT_CHECKPOINT="$PAIR_RUN/training/update_012800.pt"
 bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 ```
 
@@ -173,7 +179,17 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 - 当前含专家版GPU0验证通过：专家完整/补齐窗口的原生FM梯度检查＋1次混合FM64更新。
   首批专家21、VLA27、CAP16，冻结VLM不变，峰值allocated10.57GiB。
   原有9692个rollout窗口逐项比对完全不变；输出`outputs/expert40_dense_fm_gpu0_20261031_v1/`。
-- 正式100更新长训、H100单机16卡及LIBERO成功率评测尚未执行。
+- 正式50-epoch长训、H100单机16卡及LIBERO成功率评测尚未执行。
 
 更详细的目录说明和故障处理见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)，历史验证记录见
 [VALIDATION.md](VALIDATION.md)。本README是本次第一阶段的首要入口。
+
+
+完整50轮版本的CPU验收：109项测试通过；A800已逐轮验证真实16324窗口的采样计划，
+每轮无重复无遗漏。审计输出为`outputs/epoch50_plan_audit_20261031_v1.json`。
+新训练资产为`outputs/positive_fm_expert40_epoch50_20261031_v1/`；旧100更新资产保留作历史记录。
+该采样审计没有执行12800次模型更新，正式长训需在目标训练机启动。
+
+50轮采样版GPU0验证已通过：4次短更新，连续/恢复训练最终参数与日志完全一致，
+冻结VLM不变；16324窗口对齐原Parquet误差0，峰值allocated12.54GiB。
+结果：`outputs/epoch50_fm_gpu0_20261031_v1/report.json`。这不是正式50轮长训。

@@ -77,7 +77,8 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         raise ValueError('Expected source-aware positive-only prepared data')
     if not device.startswith('cuda') or not torch.cuda.is_available():
         raise ValueError('This validation explicitly requires a real CUDA model')
-    if config.fm_only_updates < 2:
+    from .batches import training_sampler
+    if training_sampler(records,pairs,config,mode='fm_only').nominal_updates < 2:
         raise ValueError('Validation needs room for two updates')
     source_audit = audit_source_alignment(records, norm_stats)
     out = Path(output).resolve()
@@ -150,7 +151,7 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
             raise RuntimeError('Uninterrupted run changed frozen parameters')
         metrics = [json.loads(x) for x in (out / 'run/metrics.jsonl').read_text().splitlines()]
         if ([m['update'] for m in metrics] != [1, 2] or second['updates'] != 2
-                or any(m['fm_count'] != config.fm_batch or m['pair_count'] or m['pair'] or m['eta']
+                or any(not 0 < m['fm_count'] <= config.fm_batch or m['pair_count'] or m['pair'] or m['eta']
                        or not np.isfinite(m['loss']) or not m['gradient_norm_before_clip'] > 0 for m in metrics)):
             raise RuntimeError('Invalid real FM update metrics')
         sampler = json.loads((out / 'run/sampler_audit.json').read_text())

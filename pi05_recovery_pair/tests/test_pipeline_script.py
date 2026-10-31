@@ -39,7 +39,9 @@ elif 'numeric-preview' in args or 'recovery_pair.vision_trial' in args or 'recov
     option('--output').mkdir(parents=True)
 elif 'prepare-positive-fm' in args:
     p=option('--output');p.mkdir(parents=True)
-    (p/'report.json').write_text(json.dumps(dict(split_policy='all_train_v1',validation_enabled=False)))
+    (p/'report.json').write_text(json.dumps(dict(split_policy='all_train_v1',validation_enabled=False,
+        positive_windows=16324,training_budget=dict(sampling_policy='positive_epoch_permutation_v1',
+        target_epochs=50,windows_per_epoch=16324,expected_updates=12800,drop_last=False,pad_last=False))))
 ''')
     wrapper.chmod(0o755)
     env = dict(os.environ, PAIR_PYTHON=str(wrapper), PAIR_DATA_ROOT=str(root),
@@ -83,3 +85,10 @@ elif 'prepare-positive-fm' in args:
     env['NPROC_PER_NODE']='2'
     result=subprocess.run(['bash',str(script),'train'],env=env,capture_output=True,text=True)
     assert result.returncode!=0 and len(calls())==before
+    env['NPROC_PER_NODE']='1'
+    report_path=Path(env['PAIR_RUN'])/'prepared/report.json'
+    report=json.loads(report_path.read_text())
+    report.pop('training_budget')
+    report_path.write_text(json.dumps(report))
+    result=subprocess.run(['bash',str(script),'train'],env=env,capture_output=True,text=True)
+    assert result.returncode!=0 and len(calls())==before  # old update-budget assets rejected

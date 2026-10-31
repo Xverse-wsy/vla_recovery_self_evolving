@@ -179,6 +179,8 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
     config.validate()
     if config.pair_batch != 0 or config.eta != 0:
         raise ValueError('Use the positive_fm config: pair_batch=0, eta=0')
+    if config.fm_epochs is not None and not all_train:
+        raise ValueError('Full positive epochs require --all-train')
     if expert_dataset is not None and (not dense or not all_train):
         raise ValueError('Expert demonstrations require dense positive-only --all-train preparation')
     previous = Path(admission).resolve()
@@ -270,9 +272,11 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
             expert_episodes=len({r.episode_id for r in expert_records}),expert_windows=len(expert_records),
             expert_dataset=str(Path(expert_dataset).resolve()) if expert_dataset is not None else None,
             expert_in_matching=False,
-            fm_sampling_policy='code_quota_then_uniform_expert_plus_vla_windows_v1',
+            fm_sampling_policy=('positive_epoch_permutation_v1' if config.fm_epochs is not None else
+                                'code_quota_then_uniform_expert_plus_vla_windows_v1'),
             source_original_actions_unchanged=True, training_started=False,
             fm_only_updates=config.fm_only_updates,
+            fm_epochs=config.fm_epochs,fm_only_updates_active=config.fm_epochs is None,
             note='Matching/suffix scopes unchanged; dense starts inside admitted positives plus explicitly selected expert demonstrations. Intermediate VLA requires full real H actions; successful/expert tails repeat and ARE supervised. Experts never enter matching. No pair branch.')
         if dense:
             report.update(supervision_counts(accepted))
@@ -283,6 +287,9 @@ def prepare_positive_fm(admission, config, output, *, all_train=False, dense=Tru
                 admitted_cap_success_segments=sum(s['controller']=='code' for s in scopes),
                 excluded_intermediate_tail_starts=sum(s['excluded_short_tail_starts'] for s in scopes
                                                      if s['tail_mode']=='full_real_only'))
+        if config.fm_epochs is not None:
+            from .batches import PositiveEpochSampler
+            report['training_budget']=PositiveEpochSampler(accepted,[],config).budget_report()
         (out / 'report.json').write_text(json.dumps(report, indent=2))
         if sha256(source) != digest:
             raise ValueError('Positive admission changed during preparation')

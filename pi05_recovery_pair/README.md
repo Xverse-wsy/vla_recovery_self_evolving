@@ -58,9 +58,11 @@ CUDA_VISIBLE_DEVICES=0 python -m recovery_pair train \
 ```
 
 多卡可使用后文torchrun入口并保留`--mode fm_only`。沿用lr1e-5、FM全局batch64、
-（专家＋VLA）:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
-config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认上限，
-**不表示数据遍历50个epoch**；正式预算通过该字段设置。最新要求使用`--all-train`，
+冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
+config的pair_batch=0、eta=0、fm_epochs=50：每轮打乱后无放回遍历全库，完整50轮。
+当前16324窗口、全局batch64：256更新/轮、总12800更新；每轮尾批4保留且按实际数量归一化。
+不固定来源配额，vla_fraction/fm_only_updates/max_episode_reuses仅用于旧模式。
+最新要求使用`--all-train`，
 把已准入范围与专家40逐帧展开的16324个窗口全部用于训练，不留验证／测试集，自动关闭验证及验证早停；
 保留checkpoint保存规则。原split写入fm_original_split追溯，原匹配结果与后缀范围不变，
 不重新放宽匹配或额外接收CAP片段。旧资产保留，新资产须新建输出并从基座启动新训练。
@@ -231,7 +233,7 @@ CAP 恢复成功、CAP 恢复失败。`training_quality` 从 `bank_class` 读取
 自主成功的有效窗口通过原分类作为正标签。两个入口均使用 canonical_task_index
 作为任务编号，避免将旧日志的评测列表编号与 LIBERO 官方任务编号混淆。
 原始专家40通过--expert-dataset加入FM，controller=expert、D_expert_positive。
-不伪装成VLA状态，不加入四类匹配库；每批CAP配额保持16，其余48从专家与VLA合并窗口池抽取。
+不伪装成VLA状态，不加入四类匹配库；当前每轮无放回遍历全部训练正窗口，完整50轮。
 
 ```bash
 python -m recovery_pair libraries --manifest manifest.jsonl \
@@ -488,7 +490,7 @@ CUDA_VISIBLE_DEVICES=YOUR_FREE_GPU_LIST torchrun --standalone --nproc_per_node=N
 
 默认 lr1e-5、clip1、FM64、pair≤4、lambda_push=.1、eta=.05前10%升高。
 每个有可靠负配对的独立 episode 最多50次被选中；并非把正样本池重复50遍。
-无 pair 时使用显式 `fm_only_updates` 上限，仅训 FM。每50更新保存，默认保留最近3份。
+旧配置未设置fm_epochs时，无pair使用fm_only_updates更新上限。当前阶段1使用fm_epochs=50、全train完整遍历，不受该上限控制。每50更新保存，默认保留最近3份。
 若有验证划分正数据，则每25更新用固定验证窗口/噪声检查，连续5次无改善停止。
 纯FM模式检查全部heldout正窗口各一次，不建梯度图；pair模式保留固定配对验证计划。
 这是 heldout 训练目标早停，LIBERO实际成功率仍需独立仿真评测。

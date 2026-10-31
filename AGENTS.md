@@ -36,7 +36,9 @@ FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训
 VLA中途不足完整H=10的起点舍弃，不补齐；完整专家/自主成功/CAP成功尾部允许重复末动作监督。
 使用新的prepared/training输出目录，不resume旧不含专家或稀疏checkpoint。此前1007/9692窗口实测属于历史版本。
 专家路径用PAIR_EXPERT_DATASET设置，原始episodes.json选40个episode。
-FM64保留CAP16，其他48从专家＋VLA正池均匀抽取。
+阶段1现用fm_epochs=50：全部正窗口每轮打乱无放回遍历，完整50轮；取消来源配额。
+16324窗口/FM64时256更新/轮，尾批4，总12800更新/816200次窗口呈现。
+vla_fraction/fm_only_updates/max_episode_reuses仅兼容旧模式。用新prepared/run，不resume旧随机模式。
 
 ## 实验定义
 

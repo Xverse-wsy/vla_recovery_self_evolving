@@ -1,4 +1,4 @@
-"""Bounded episode-budget trainer. Explicit base checkpoint; no warm-up branch."""
+"""Exact positive epochs or legacy episode budgets; explicit base, no warm-up."""
 from dataclasses import replace
 import json
 import math
@@ -7,7 +7,7 @@ from pathlib import Path
 import random
 import torch
 import numpy as np
-from .batches import EpisodeEventSampler
+from .batches import EpisodeEventSampler, training_sampler, PositiveEpochSampler
 from .engine import optimizer_update, accumulate_update, distributed_info
 from .features import sha256
 from .flow import differentiable_sample
@@ -65,7 +65,7 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
             raise ValueError('Data/model action specification mismatch')
         if base and r.spec.normalization_sha256 != base['norm_sha256']:
             raise ValueError('Base checkpoint normalization differs from data')
-    sampler = EpisodeEventSampler(records,pairs,config)
+    sampler = training_sampler(records,pairs,config,mode=mode)
     rank, world = distributed_info()
     out = Path(output).resolve()
     if rank==0:
@@ -122,8 +122,10 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
         (out/'run.json').write_text(json.dumps(dict(identity=identity,world_size=world,
             freeze_report=backend.freeze_report() if hasattr(backend,'freeze_report') else {'backend':'toy'},
             no_positive_warmup=True,validation_enabled=bool(validation_plan),
-            validation_fm_windows=len(validation_plan['fm_ids']) if validation_plan else 0),indent=2))
-    stop_reason='episode_budget_complete'
+            validation_fm_windows=len(validation_plan['fm_ids']) if validation_plan else 0,
+            training_budget=sampler.budget_report() if isinstance(sampler,PositiveEpochSampler) else
+                dict(sampling_policy='legacy_source_quota_with_replacement',expected_updates=sampler.nominal_updates)),indent=2))
+    stop_reason='epochs_complete' if isinstance(sampler,PositiveEpochSampler) else 'episode_budget_complete'
 
     def checkpoint(update):
         if rank!=0:
@@ -152,6 +154,9 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
         update+=1
         metrics.update(update=update,episode_visits=plan['episode_visits'],
                        fm_count=len(plan['fm_ids']),pair_count=len(plan['pairs']))
+        for key in ('epoch','batch_in_epoch','epoch_complete','epochs_completed','position_in_epoch','samples_seen'):
+            if key in plan:
+                metrics[key]=plan[key]
         if validation_plan and update%validate_every==0:
             validation_metrics=accumulate_update(backend,loader,records,validation_plan,config,
                 update_index=781,total_updates=1,mode=mode,backward=False)
@@ -173,6 +178,9 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
     checkpoint(update)
     result=dict(state='stopped',reason=stop_reason,updates=update,episode_visits=sampler.visits,
                 max_episode_reuses=config.max_episode_reuses,validation_enabled=bool(validation_plan))
+    if isinstance(sampler,PositiveEpochSampler):
+        result.update(sampler.budget_report(),epochs_completed=sampler.epochs_completed,
+                      position_in_epoch=sampler.position,samples_seen=sampler.samples_seen)
     if rank==0:
         (out/'status.json').write_text(json.dumps(result,indent=2))
     return result
