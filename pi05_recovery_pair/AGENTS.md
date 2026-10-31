@@ -7,7 +7,11 @@ CAP-X code, RLinf code or old training configs to run it.
 - Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
   admitted positive_pool, uses native FM only and no negative/pair branch. Use
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
-  suffix scope, source window starts and splits; no expert40 is implicitly added.
+  suffix scope and source window starts; no expert40 is implicitly added.
+  Latest user override: prepare with --all-train. Move ALL already-admitted positives
+  to train, retaining fm_original_split; no validation/test or validation early stop.
+  Do not rematch or admit additional CAP windows. Preserve old immutable artifacts.
+  Without flag, old preserve-split behavior remains available for reproducibility.
   Intermediate VLA progress windows require a full REAL H-step horizon; drop short
   tail windows. Autonomous successful episodes and admitted CAP-success suffixes
   may repeat the last real action to H, and these repeats ARE supervised by FM.

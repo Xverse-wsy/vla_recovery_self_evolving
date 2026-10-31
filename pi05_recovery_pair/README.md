@@ -26,7 +26,7 @@ requires_grad控制。缓存前缀只用于采样分支，不用它替代原生F
 ```bash
 python -m recovery_pair prepare-positive-fm \
   --admission /path/to/completed_success_admission \
-  --config configs/libero_pi05_positive_fm.json \
+  --config configs/libero_pi05_positive_fm.json --all-train \
   --output /path/to/new_positive_fm_prepared
 python -m recovery_pair audit --prepared /path/to/new_positive_fm_prepared
 # 可选全量原数据对齐检查（CPU，无需加载模型）：
@@ -51,7 +51,10 @@ CUDA_VISIBLE_DEVICES=0 python -m recovery_pair train \
 多卡可使用后文torchrun入口并保留`--mode fm_only`。沿用lr1e-5、FM全局batch64、
 VLA:CAP约3:1、冻结VLM只训action expert和投影、microbatch1。没有配对正参考额外加入FM。
 config的pair_batch=0、eta=0；`fm_only_updates`暂留100次更新作为默认上限，
-**不表示数据遍历50个epoch**；正式预算通过该字段设置。沿用验证早停及checkpoint规则。
+**不表示数据遍历50个epoch**；正式预算通过该字段设置。最新要求使用`--all-train`，
+把现有已准入的1007个窗口全部用于训练，不留验证／测试集，自动关闭验证及验证早停；
+保留checkpoint保存规则。原split写入fm_original_split追溯，原匹配结果与后缀范围不变，
+不重新放宽匹配或额外接收CAP片段。旧资产保留，新资产须新建输出并从基座启动新训练。
 未授权启动正式训练。旧pair配置与数据保留，可独立做对照；新FM资产禁止用于pair模式。
 
 真实GPU短验证入口如下。它先逐窗对照原Parquet检查观测／动作、归一化和片段边界，

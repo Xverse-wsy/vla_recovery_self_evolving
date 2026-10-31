@@ -15,6 +15,8 @@ FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`D
 最新负匹配仅使用VLA失败片段；CAP失败仍保留在来源库中，具体规则见子目录说明。
 2026-10-31新增纯正向FM版本，使用已纳入正池；中途VLA正片段只保留完整真实窗口，
 自主成功和CAP成功允许末动作重复监督。新配置与prepared独立，强制mode=fm_only。
+用户最新要求全部已准入正窗口用于训练：prepare-positive-fm --all-train，
+不留validation/test、不做验证早停；不重新匹配扩池，保留旧资产及原split溯源。
 A800仅CPU准备和审计1007窗口完成，未启动正式训练；详见子目录入口和验证文档。
 随后已通过物理GPU0的两次真实FM64更新及基座重载/checkpoint恢复验证，峰值分配15.31GiB。
 FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训练或LIBERO成功率已验证。

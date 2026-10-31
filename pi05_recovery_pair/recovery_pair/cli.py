@@ -51,6 +51,7 @@ def main():
     p=subs.add_parser('prepare-positive-fm',help='Positive-only FM with source-specific terminal repetition')
     for arg in ('admission','config','output'):
         p.add_argument('--'+arg,required=True)
+    p.add_argument('--all-train',action='store_true',help='All admitted positives train; no heldout/early stopping')
     p=subs.add_parser('audit')
     p.add_argument('--prepared',required=True)
     p.add_argument('--source-norm-stats',help='Also compare source-aware FM windows against original Parquet and normalization')
@@ -122,7 +123,7 @@ def main():
         result=prepare(load_windows(args.windows),Config.load(args.config),args.output)
     elif args.command=='prepare-positive-fm':
         from .positive_fm import prepare_positive_fm
-        result=prepare_positive_fm(args.admission,Config.load(args.config),args.output)
+        result=prepare_positive_fm(args.admission,Config.load(args.config),args.output,all_train=args.all_train)
     elif args.command=='audit':
         records,pairs,digest=audit_prepared(args.prepared)
         result=dict(windows=len(records),pairs=len(pairs),artifact_sha256=digest)

@@ -473,3 +473,15 @@ existing_documented_export_reused=true，不表示导出命令失败。
   分片下无重复遗漏，并拒绝不完整／配置不一致结果；此分片检查不使用GPU或真实仿真。
 - 已检查Python语法及评测helper导入。验证记录证明当前机器上的短流程，不等于新机器环境
   安装验证、长训稳定性或实际任务成功率保证。
+
+
+## 全部已准入正窗口用于训练（2026-10-31）
+
+用户要求取消验证／测试划分。新增prepare-positive-fm --all-train，在保持现有已准入池、
+动作、mask、窗口起点和成功后缀范围不变的前提下，把生成资产的所有窗口转为train；
+source.fm_original_split保留原划分，fm_split_policy=all_train_v1。
+不改原库或匹配结果，不因合并划分重新接收CAP片段。
+trainer发现没有validation窗口时自动关闭验证与验证早停，仍按显式更新预算结束和保存checkpoint。
+完整CPU回归88项通过，新增用例核对全量转入train后所有动作/mask与保留原划分资产一致，
+原索引哈希不变，并实际做合成优化器更新检查validation_enabled=false且日志不含validation。
+旧GPU报告针对保留划分资产；本次不据此声称新资产已完成真实GPU验证。

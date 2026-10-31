@@ -142,3 +142,36 @@ def test_deep_audit_compares_original_parquet_and_rejects_shifted_observation(tm
     selected[0].image_refs['front']=dict(selected[0].image_refs['front'],row=1)
     with pytest.raises(ValueError,match='misaligned'):
         audit_source_alignment(selected,tmp_path/'fixture/norm_stats.json')
+
+
+def test_all_train_preserves_admitted_actions_and_disables_validation(window, config, tmp_path):
+    config = replace(config, pair_batch=0, eta=0, fm_batch=4, fm_only_updates=1)
+    records = [source(window, 'train'),
+               source(window, 'heldout', category='autonomous_episode_success', real=8),
+               source(window, 'test', controller='code', category='capx_completed', real=2)]
+    for r, split in zip(records, ('train', 'validation', 'test')):
+        r.split = split
+    previous = admission(tmp_path, records, config)
+    source_sha = sha256(previous/'positive_pool.jsonl')
+    baseline = tmp_path/'preserve'
+    prepare_positive_fm(previous, config, baseline)
+    out = tmp_path/'all_train'
+    report = prepare_positive_fm(previous, config, out, all_train=True)
+    assert report['split_policy'] == 'all_train_v1'
+    assert not report['validation_enabled']
+    accepted, pairs, _ = audit_prepared(out, config)
+    old, _, _ = audit_prepared(baseline, config)
+    assert len(accepted) == 3 and all(r.split == 'train' for r in accepted)
+    assert {r.source['fm_original_split'] for r in accepted} == {'train', 'validation', 'test'}
+    assert [r.sample_id for r in accepted] == [r.sample_id for r in old]
+    for a,b in zip(accepted,old):
+        for key, array in a.payload().items():
+            np.testing.assert_array_equal(array,b.payload()[key])
+    assert sha256(previous/'positive_pool.jsonl') == source_sha
+    result = train(ToyFlow(), loader, out, config, tmp_path/'run_all', mode='fm_only',
+                   validate_every=1)
+    assert result['updates'] == 1 and not result['validation_enabled']
+    metadata = json.loads((tmp_path/'run_all/run.json').read_text())
+    assert metadata['validation_fm_windows'] == 0
+    metrics = json.loads((tmp_path/'run_all/metrics.jsonl').read_text())
+    assert 'validation' not in metrics

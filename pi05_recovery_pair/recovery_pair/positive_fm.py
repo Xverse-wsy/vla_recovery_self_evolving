@@ -65,6 +65,9 @@ def audit_positive_fm(records, pairs, config):
     for r in records:
         p = r.payload()
         mode = tail_mode(r)
+        if r.source.get('fm_split_policy') == 'all_train_v1':
+            if r.split != 'train' or r.source.get('fm_original_split') not in ('train', 'validation', 'test'):
+                raise ValueError('All-train window split/provenance is invalid')
         n = r.source.get('fm_real_steps', 0)
         if (r.source.get('fm_tail_policy') != POLICY or r.source.get('fm_tail_mode') != mode
                 or not 1 <= n <= r.spec.horizon
@@ -141,7 +144,7 @@ def audit_source_alignment(records, norm_stats):
         original_segment_boundaries_respected=True, normalization_sha256=assets.sha)
 
 
-def prepare_positive_fm(admission, config, output):
+def prepare_positive_fm(admission, config, output, *, all_train=False):
     config.validate()
     if config.pair_batch != 0 or config.eta != 0:
         raise ValueError('Use the positive_fm config: pair_batch=0, eta=0')
@@ -183,6 +186,10 @@ def prepare_positive_fm(admission, config, output):
                     segment_id=r.source.get('segment_id'), split=r.split,
                     reason='intermediate_vla_has_less_than_full_real_horizon'))
             else:
+                if all_train:
+                    result.source = dict(result.source, fm_original_split=result.split,
+                                         fm_split_policy='all_train_v1')
+                    result.split = 'train'
                 accepted.append(result)
         if not any(r.split == 'train' and r.controller == 'VLA' for r in accepted):
             raise ValueError('No train VLA positives remain')
@@ -205,10 +212,12 @@ def prepare_positive_fm(admission, config, output):
             tail_policies=dict(Counter(tail_mode(r) for r in accepted)),
             repeated_tail_windows=sum(r.source['fm_repeated_steps'] > 0 for r in accepted),
             repeated_action_steps=sum(r.source['fm_repeated_steps'] for r in accepted),
+            split_policy='all_train_v1' if all_train else 'preserve_source_v1',
+            validation_enabled=any(r.split == 'validation' for r in accepted),
             state_stride_unchanged=True, coverage_and_suffix_scope_unchanged=True,
             source_original_actions_unchanged=True, training_started=False,
             fm_only_updates=config.fm_only_updates,
-            note='Retains existing window starts and split; repeated terminal actions ARE supervised. No pair branch or expert40 added.')
+            note='Retains admitted windows, starts and suffix scope; split_policy declares train reassignment. Repeated terminal actions ARE supervised. No pair branch or expert40 added.')
         (out / 'report.json').write_text(json.dumps(report, indent=2))
         if sha256(source) != digest:
             raise ValueError('Positive admission changed during preparation')
@@ -226,8 +235,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('admission', 'config', 'output'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--all-train', action='store_true',
+                        help='Use every already-admitted positive window for training; no heldout or early stopping')
     args = parser.parse_args()
-    print(json.dumps(prepare_positive_fm(args.admission, Config.load(args.config), args.output), indent=2))
+    print(json.dumps(prepare_positive_fm(args.admission, Config.load(args.config), args.output,
+                                         all_train=args.all_train), indent=2))
 
 
 if __name__ == '__main__':
