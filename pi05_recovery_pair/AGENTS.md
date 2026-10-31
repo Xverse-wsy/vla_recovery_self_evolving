@@ -5,6 +5,9 @@ experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
 - Current scope: stage 1 only. Do not implement or start stage 2/pair training.
+  README_STAGE1 entry was actually run on A800 GPU0: prepare/train(1 update)/export
+  plus exact GPU reload and finite native inference, output stage1_readme_e2e_20261031_v1.
+  This is not full-budget training or H100/16-GPU verification.
 - Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
   admitted positive_pool, uses native FM only and no negative/pair branch. Use
   configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,

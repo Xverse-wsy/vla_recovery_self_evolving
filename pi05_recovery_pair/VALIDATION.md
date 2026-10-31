@@ -502,3 +502,24 @@ A800连接恢复后实际CPU生成outputs/positive_fm_all_train_20261031_v1/并�
 原Parquet state/actions/图像引用对齐通过，最大真实动作误差0。
 新资产SHA256为841e044478243ee56facb53222c1ef07c7ea0cced06120a34ff977199df03d68。
 没有启动该资产的正式训练或新的GPU短更新；此前GPU0/GPU2结果对应旧保留划分资产。
+
+
+## README第一阶段入口的实际全流程验证（2026-10-31）
+
+本次直接调用scripts/run_positive_fm_pipeline.sh的prepare、train、export三个阶段，
+不以命令记录器测试替代实跑；输出outputs/stage1_readme_e2e_20261031_v1/。
+启动前35个源码／脚本／配置文件SHA核对一致，物理GPU0空闲46571MiB；视觉cap8GiB，
+训练cap17GiB且额外检查4GiB余量，训练显式PAIR_MAX_UPDATES=1。
+
+- 从原数据重建四类段库60/40/20/362，构建13164个原窗口。
+- 641组数值候选、236个候选窗口双视角编码后完成成功准入；最终1007个全train正窗口，
+  深审计通过，负样本与pair不进入优化，validation_enabled=false。
+- 加载原始RLinf few-shot基座，实际FM64/micro1更新1次，loss0.22206820780411363，
+  裁剪前梯度范数1.0495247840881348（按clip1处理）。1次后按显式限制停止并保存checkpoint。
+- 实际export命令成功导出full_weights.pt；随后GPU重载，全部可训练参数与保存checkpoint
+  逐张量精确相同，冻结参数SHA与原基座相同，原始权重及norm哈希不变。
+- 原生部署采样输出[1,10,32]，全部有限；重载推理峰值allocated6.63675GiB。
+- 全流程329.59秒，screen退出且GPU0显存恢复，未kill其他进程，未调用API或LIBERO。
+
+本次仅新增实测证据，无训练代码修正。确认A800单卡的本文档入口可运行；
+不据此宣称H100单机16卡实测通过、正式长训完成或任务成功率提高。

@@ -156,8 +156,14 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 
 - A800已生成`outputs/positive_fm_all_train_20261031_v1/`并审计1007窗口，动作和mask与旧资产精确一致。
 - CPU完整回归89项通过；阶段脚本有命令串联测试，验证prepare不启动训练及单机多卡参数。
-- 此前GPU0/GPU2的真实短更新、断点恢复、导出重载与推理检查通过，但使用的是旧保留划分资产。
-- 未启动当前全train资产的正式长训，未实测H100单机16卡，也未完成LIBERO成功率评测。
+- 此前GPU0/GPU2的真实短更新、断点恢复、导出重载与推理检查通过。
+- 最新在A800 GPU0实际执行本文的阶段脚本prepare→train→export，再重新加载原生推理。
+  从头重建四类库、视觉匹配、1007全train窗口后，用原始few-shot基座做1次FM64更新，
+  无验证／负分支，checkpoint保存及完整权重导出均通过；重新加载后可训练参数精确一致，
+  冻结参数和原基座不变，动作输出[1,10,32]且全部有限。全程329.59秒，screen正常退出。
+  输出为outputs/stage1_readme_e2e_20261031_v1/；本次无需修改训练代码。
+- 因此A800单卡完整入口已实际跑通；迁移仍须正确配置环境、数据和GPU。
+  正式100更新长训、H100单机16卡及LIBERO成功率评测尚未执行。
 
 更详细的目录说明和故障处理见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)，历史验证记录见
 [VALIDATION.md](VALIDATION.md)。本README是本次第一阶段的首要入口。
