@@ -61,6 +61,7 @@ def main():
     p=subs.add_parser('train')
     for arg in ('prepared','config','checkpoint','norm-stats','output'):
         p.add_argument('--'+arg,required=True)
+    p.add_argument('--max-cuda-memory-gb',type=float,help='Optional per-rank allocator cap; requires another 4 GiB free before model load')
     p.add_argument('--resume')
     p.add_argument('--max-updates',type=int)
     p.add_argument('--mode',choices=['continuous_pair','pull_only','fm_only'],default='continuous_pair')
@@ -138,6 +139,15 @@ def main():
         from .openpi_backend import load_backend,ObservationLoader
         config=Config.load(args.config)
         device=init_distributed()
+        if args.max_cuda_memory_gb is not None:
+            if not device.startswith('cuda'):
+                raise ValueError('CUDA memory cap requires CUDA')
+            import math
+            cap=args.max_cuda_memory_gb
+            free,total=torch.cuda.mem_get_info()
+            if not math.isfinite(cap) or cap<=0 or (cap+4)*1024**3>free:
+                raise ValueError('Need positive allocator cap plus 4 GiB free margin on every selected GPU')
+            torch.cuda.set_per_process_memory_fraction(cap*1024**3/total)
         torch.manual_seed(config.seed)
         base=base_identity(args.checkpoint,args.norm_stats)
         # Audit before allocating the model.

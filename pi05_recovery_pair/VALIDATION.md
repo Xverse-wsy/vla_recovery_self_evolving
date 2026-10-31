@@ -485,3 +485,20 @@ trainer发现没有validation窗口时自动关闭验证与验证早停，仍按
 完整CPU回归88项通过，新增用例核对全量转入train后所有动作/mask与保留原划分资产一致，
 原索引哈希不变，并实际做合成优化器更新检查validation_enabled=false且日志不含validation。
 旧GPU报告针对保留划分资产；本次不据此声称新资产已完成真实GPU验证。
+
+
+## 当前流程入口与A800全train资产（2026-10-31）
+
+新增RUN_POSITIVE_FM.md、scripts/positive_fm.env.example及
+scripts/run_positive_fm_pipeline.sh prepare|train|export，明确当前纯FM与历史pair实验区别。
+命令串联测试用记录器替代GPU/训练命令，覆盖prepare不启动训练、all-train、视觉单卡、
+单卡/多卡启动、恢复/步数限制、导出及GPU数量不一致拒绝；这不是16卡实际训练。
+完整CPU回归89项通过，Bash语法及CLI help通过。训练新增可选每rank allocator cap，
+要求模型加载前额外4GiB余量；这不限制CUDA上下文/NCCL的额外显存。
+
+A800连接恢复后实际CPU生成outputs/positive_fm_all_train_20261031_v1/并完整审计：
+1007个窗口全部train（VLA825、CAP182），validation_enabled=false。
+9885真实动作步＋185重复补齐位置＝10070。逐条对照旧资产的动作和全部mask精确一致，
+原Parquet state/actions/图像引用对齐通过，最大真实动作误差0。
+新资产SHA256为841e044478243ee56facb53222c1ef07c7ea0cced06120a34ff977199df03d68。
+没有启动该资产的正式训练或新的GPU短更新；此前GPU0/GPU2结果对应旧保留划分资产。

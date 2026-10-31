@@ -1,6 +1,6 @@
 # Recovery pair experiment: handoff
 
-Read README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independent
+Read RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independent
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 

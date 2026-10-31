@@ -3,6 +3,9 @@
 先按 ENVIRONMENT.md 安装两个 Python 3.12 环境，准备源码、权重、数据和 LIBERO
 资源。下面的正式命令会启动长训/完整评测，请先执行 `plan` 检查配置。
 
+当前用户指定的**全量正向FM**流程在[pi05_recovery_pair/RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)。
+本文以下保留的是专家40＋自主20／恢复20的旧A60/B80对照，不用于当前片段库训练。
+
 ## 统一配置
 
 在代码仓库根目录：

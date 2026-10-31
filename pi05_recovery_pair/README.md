@@ -3,6 +3,10 @@
 这是用户 12 点方案的一版独立 PyTorch 实现。位于新目录，不修改已有 CAP-X、
 RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)。
 
+当前版本从建库到训练的完整操作，请先读 **[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)**。
+入口：`scripts/run_positive_fm_pipeline.sh prepare|train|export`，机器配置模板：
+`scripts/positive_fm.env.example`。README后半保留旧pair实验，不属于当前纯FM流程。
+
 ## 当前纯正向 FM 版本（2026-10-31）
 
 最新方案先仅训练现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，

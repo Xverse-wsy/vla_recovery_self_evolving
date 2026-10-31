@@ -9,6 +9,12 @@
 [VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
 新目录有自己的配置、数据要求和命令，不会自动接入根目录的50-epoch流程。
 
+**当前全量正向FM流程**请直接读
+[RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)：
+`cd pi05_recovery_pair`，配置`scripts/positive_fm.env.example`，再分阶段执行
+`scripts/run_positive_fm_pipeline.sh prepare|train|export`。
+它使用切分后的正片段和匹配成功的CAP后缀，全部用于训练；不使用专家40，也不是下方A60/B80配方。
+
 This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets
 or modify the original datasets, RLinf source, or base model.

@@ -155,7 +155,9 @@ H默认10；尾部补齐和D32中25个padding维度均无效。
 单独复制动作payload：VLA中途正常推进窗口不足完整真实H步时舍弃；完整自主成功与已纳入
 CAP成功后缀的尾部重复最后真实动作至H，并把重复的7维动作设为有效FM监督。
 real_action_mask单独标记真实动作，source记录原window/payload/SHA、真实与重复步数。
-填充模型维度仍无效；不复制未来观测或跨越原正向片段；保留原窗口起点及split。
+填充模型维度仍无效；不复制未来观测或跨越原正向片段；保留原窗口起点。
+最新--all-train将已准入窗口全部设为train，source.fm_original_split追溯原划分，
+不保留validation/test或验证早停；默认不传flag时保留旧split以复现历史结果。
 这类资产pairs为空，配置pair_batch=0、eta=0，训练仅允许mode=fm_only。
 不能把这些重复步误称为真实执行记录，也不能将这种payload送入旧pair配对。
 

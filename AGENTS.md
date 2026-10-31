@@ -9,6 +9,9 @@
 FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`DATA_CONTRACT.md`、
 `VALIDATION.md`，按该目录的配置和命令运行；本文件以下A60/B80实验定义适用于根目录。
 新增模块可复用本仓库训练环境，但pyproject仅列新增依赖，不能替代完整π0.5环境。
+当前纯FM全流程入口：pi05_recovery_pair/RUN_POSITIVE_FM.md，环境模板
+scripts/positive_fm.env.example，阶段脚本scripts/run_positive_fm_pipeline.sh prepare|train|export。
+prepare只建库匹配审计，train才显式训练；原始专家40不加入，全部已准入正窗口用于训练。
 当前已在A800完成建库、视觉、成功后缀入池及VLA负片段完整匹配统计；40个负片段中
 21个状态匹配、15个可配对（train12/validation2/test1）。真实pair训练和匹配准确率
 尚未完成。数据、模型、图像缓存、已安装环境和私有凭据不随代码提交。
