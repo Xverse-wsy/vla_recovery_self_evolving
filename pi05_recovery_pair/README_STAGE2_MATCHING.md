@@ -3,6 +3,12 @@
 本入口只建库和统计，不训练模型。Stage2的loss和正式训练预算仍待讨论。
 用户授权本独立参考池使用专家40；Stage1仍保持专家只参加FM、CAP只查询VLA正库的规则。
 
+**本版Stage2已选定：`configs/libero_pi05_stage2_numeric20.json`，
+位置差2cm、旋转差10°、标准化state8 RMS0.20，前视/腕部图像距离各≤0.002。**
+A800对应结果为`outputs/stage2_dense_expert_numeric20_20261101_v1/`：
+144个可用负窗口，覆盖26条父轨迹，去重有效负动作205帧。
+仅选择现有Stage2专用配置；Stage1代码、配置、数据及共享匹配实现均不修改。
+
 ## 本次做什么
 
 1. 读取本机已经审计通过的Stage1密集全train正池：专家40、自主成功20、VLA正常推进片段、既定14个CAP成功后缀。
@@ -21,13 +27,13 @@ VLA中途正参考继续使用Stage1既定的完整真实H窗口；本入口不�
 ## 匹配规则
 
 只用公开任务指令、起点state8、前视/腕部RGB；没有任务进度、物体真值、接触真值或未来观测。
-统一ActionSpec、归一化资产和字段顺序。沿用严格负匹配门槛：
+统一ActionSpec、归一化资产和字段顺序。本版Stage2使用用户选定的门槛：
 
 | 项目 | 门槛 |
 |---|---:|
-| 起点末端位置差，从模型state8计算 | 1cm |
-| 起点末端旋转差，从模型state8计算 | 5° |
-| 标准化state8 RMS | 0.10 |
+| 起点末端位置差，从模型state8计算 | 2cm |
+| 起点末端旋转差，从模型state8计算 | 10° |
+| 标准化state8 RMS | 0.20 |
 | 前视/腕部图像余弦距离，各自检查 | 0.002 |
 | 数值候选上限 | 50 |
 | 每个负窗口保留正参考上限 | 3，优先不同episode |
@@ -46,7 +52,7 @@ VLA中途正参考继续使用Stage1既定的完整真实H窗口；本入口不�
 
 ```bash
 source scripts/my.local.env
-export STAGE2_MATCH_OUT=/data/pi05-runs/stage2_dense_expert_matching_v1
+export STAGE2_MATCH_OUT=/data/pi05-runs/stage2_dense_expert_numeric20_v1
 nvidia-smi
 # GPU0仅是例子：选择有空闲显存的卡。8GiB allocator上限另需4GiB空闲余量。
 mkdir -p "$(dirname "$STAGE2_MATCH_OUT")"
@@ -54,12 +60,13 @@ CUDA_VISIBLE_DEVICES=0 JAX_PLATFORMS=cpu OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=
   "$PAIR_PYTHON" -u -m recovery_pair.stage2_matching \
   --positive-prepared "$PAIR_RUN/prepared" \
   --negative-windows "$PAIR_RUN/banks/windows/windows.jsonl" \
-  --checkpoint "$PAIR_CHECKPOINT" --config "$PAIR_RUN/algorithm.json" \
+  --checkpoint "$PAIR_CHECKPOINT" --config configs/libero_pi05_stage2_numeric20.json \
   --output "$STAGE2_MATCH_OUT" --device cuda:0 --max-cuda-memory-gb 8 --batch-size 2 \
   > "$STAGE2_MATCH_OUT.log" 2>&1
 ```
 
 可将上述命令放入screen运行；程序主动输出阶段进度，状态写入新目录status.json。
+此处显式传Stage2专用配置；不要改Stage1的PAIR_CONFIG、algorithm.json或通用libero_pi05.json。
 本入口不调用Stage1的FrozenMatcher来接收专家，避免修改Stage1的专家隔离规则。
 完整回归还检查Stage1继续拒绝专家作为其匹配参考。
 
@@ -92,7 +99,7 @@ CUDA_VISIBLE_DEVICES=0 JAX_PLATFORMS=cpu OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=
 不能作为本轮313起点密集查询的结果，也不能直接归因所有数量变化都来自专家。
 这份输出是匹配统计资产，不是已经接入Stage2优化器的正式训练prepared目录。
 
-## A800实际结果（2026-11-01）
+## 历史严格基线实际结果（2026-11-01）
 
 输出：`outputs/stage2_dense_expert_matching_20261101_v1/`。
 
@@ -126,7 +133,7 @@ CUDA_VISIBLE_DEVICES=0 JAX_PLATFORMS=cpu OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=
 |---|---:|---:|---:|---:|
 | `configs/libero_pi05.json`，严格基线 | 1cm | 5° | 0.10 | 0.002 |
 | `configs/libero_pi05_stage2_numeric15.json` | 1.5cm | 7.5° | 0.15 | 0.002 |
-| `configs/libero_pi05_stage2_numeric20.json` | 2cm | 10° | 0.20 | 0.002 |
+| `configs/libero_pi05_stage2_numeric20.json`，本版选定 | 2cm | 10° | 0.20 | 0.002 |
 
 仍逐负起点独立匹配，数值候选最多50个、正参考最多3个、至少3步有效动作交集，
 不改变标签、真实动作mask和不补齐负尾部的规则。不启动优化器或回放。
@@ -141,4 +148,5 @@ CUDA_VISIBLE_DEVICES=0 JAX_PLATFORMS=cpu OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=
 2倍数值门槛也已完成：210个起点有数值候选、190个通过图像，最终144个可用负窗口，
 覆盖26段/26条父轨迹、去重有效负动作205帧。
 输出：`outputs/stage2_dense_expert_numeric20_20261101_v1/`。
-两个实验都保持原输入哈希，不启动训练；放宽配置尚未替换默认严格配置。
+两个实验都保持原输入哈希，不启动训练。用户已选定numeric20作为本版Stage2配置；
+Stage1和通用严格配置仍保留原值，旧匹配结果不覆盖。

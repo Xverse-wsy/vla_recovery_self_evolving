@@ -4,6 +4,14 @@ Read README_STAGE1.md, RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALID
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
+- CURRENT Stage2 selection (user approved 2026-11-01): use the EXISTING
+  configs/libero_pi05_stage2_numeric20.json: 2cm/10deg/state8 RMS0.20,
+  image0.002 per view, max50 candidates, max3 references, min3 effective steps.
+  Selected A800 matching output: outputs/stage2_dense_expert_numeric20_20261101_v1
+  (144 negative windows,26 parent episodes,205 unique effective action frames).
+  This supersedes historical Stage2 strict/experimental-only notes below.
+  Do NOT change ANY Stage1 code/config/data, shared matching implementation or
+  configs/libero_pi05.json to apply this selection. No training is authorized.
 - Latest user authorization (2026-11-01): implement and RUN Stage2 MATCHING ONLY,
   via recovery_pair.stage2_matching. Add expert40 as explicitly identified positive
   REFERENCES in this separate pool; dense every-real-frame VLA-negative queries.
@@ -17,7 +25,8 @@ CAP-X code, RLinf code or old training configs to run it.
   configs/libero_pi05_stage2_numeric15.json (1.5cm/7.5deg/RMS0.15) and numeric20
   (2cm/10deg/RMS0.20) in NEW outputs. Keep image0.002, min_pair_steps3, max50
   candidates, labels and all Stage1 rules unchanged. Preserve strict baseline86.
-  These are matching-only experiments, not new defaults or training authorization.
+  These were matching-only experiments; numeric20 is now selected for Stage2.
+  This is not training authorization.
 - Stage1 scope remains positive-only. Do not start stage 2/pair training.
   README_STAGE1 entry was actually run on A800 GPU0: prepare/train(1 update)/export
   plus exact GPU reload and finite native inference, output stage1_readme_e2e_20261031_v1.
