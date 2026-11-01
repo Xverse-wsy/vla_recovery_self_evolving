@@ -3,7 +3,9 @@
 这是用户 12 点方案的一版独立 PyTorch 实现。位于新目录，不修改已有 CAP-X、
 RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)。
 
-本次只运行第一阶段，请先读 **[README_STAGE1.md](README_STAGE1.md)**。
+训练当前只运行第一阶段，请先读 **[README_STAGE1.md](README_STAGE1.md)**。
+新增独立Stage2匹配统计入口见[README_STAGE2_MATCHING.md](README_STAGE2_MATCHING.md)：
+专家40加入单独正参考池、VLA负段逐帧查询；这项授权不包含Stage2训练，也不改变Stage1匹配。
 完整参数、目录与故障处理另见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)。
 入口：`scripts/run_positive_fm_pipeline.sh prepare|train|export`，机器配置模板：
 `scripts/positive_fm.env.example`。README后半保留旧pair实验，不属于当前纯FM流程。

@@ -4,7 +4,16 @@ Read README_STAGE1.md, RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALID
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
-- Current scope: stage 1 only. Do not implement or start stage 2/pair training.
+- Latest user authorization (2026-11-01): implement and RUN Stage2 MATCHING ONLY,
+  via recovery_pair.stage2_matching. Add expert40 as explicitly identified positive
+  REFERENCES in this separate pool; dense every-real-frame VLA-negative queries.
+  Preserve Stage1 FrozenMatcher expert rejection and all Stage1 assets/configs.
+  Reuse exactly Stage1 admitted dense positive scopes, with FM synthetic repeats
+  excluded from pair masks. Every negative start is independently matched;
+  no inherited neighbor match/suffix expansion. Keep strict existing thresholds.
+  All Stage2 references/queries are train, with original split preserved as provenance.
+  No pair optimizer/training, replay, API or label changes are authorized.
+- Stage1 scope remains positive-only. Do not start stage 2/pair training.
   README_STAGE1 entry was actually run on A800 GPU0: prepare/train(1 update)/export
   plus exact GPU reload and finite native inference, output stage1_readme_e2e_20261031_v1.
   This is not full-budget training or H100/16-GPU verification.

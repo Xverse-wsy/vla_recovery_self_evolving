@@ -9,13 +9,17 @@
 FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`DATA_CONTRACT.md`、
 `VALIDATION.md`，按该目录的配置和命令运行；本文件以下A60/B80实验定义适用于根目录。
 新增模块可复用本仓库训练环境，但pyproject仅列新增依赖，不能替代完整π0.5环境。
-本次只做第一阶段，先读pi05_recovery_pair/README_STAGE1.md；不实施第二阶段。
+第一阶段入口：pi05_recovery_pair/README_STAGE1.md。
+2026-11-01最新授权仅新增Stage2匹配统计：独立池可纳入专家40，对VLA负段逐帧匹配；
+读pi05_recovery_pair/README_STAGE2_MATCHING.md。不实施/启动Stage2训练，不修改Stage1规则或旧资产。
 当前纯FM全流程入口：pi05_recovery_pair/RUN_POSITIVE_FM.md，环境模板
 scripts/positive_fm.env.example，阶段脚本scripts/run_positive_fm_pipeline.sh prepare|train|export。
-prepare只建库匹配审计，train才显式训练；原始专家40明确加入FM训练，全部正窗口用于训练；expert不进入匹配。
-当前已在A800完成建库、视觉、成功后缀入池及VLA负片段完整匹配统计；40个负片段中
+prepare只建库匹配审计，train才显式训练；原始专家40明确加入FM训练，全部正窗口用于训练；Stage1匹配不接收expert。
+历史稀疏匹配已在A800完成建库、视觉、成功后缀入池及VLA负片段统计；40个负片段中
 21个状态匹配、15个可配对（train12/validation2/test1）。真实pair训练和匹配准确率
 尚未完成。数据、模型、图像缓存、已安装环境和私有凭据不随代码提交。
+2026-11-01独立Stage2匹配已完成：正参考16324个（含专家6632），负起点313个逐一匹配，
+86个可用窗口/18段/18条父轨迹，去重有效负动作141帧。保持原严格阈值；未启动Stage2训练。
 最新负匹配仅使用VLA失败片段；CAP失败仍保留在来源库中，具体规则见子目录说明。
 2026-10-31新增纯正向FM版本，使用已纳入正池；中途VLA正片段只保留完整真实窗口，
 自主成功和CAP成功允许末动作重复监督。新配置与prepared独立，强制mode=fm_only。
