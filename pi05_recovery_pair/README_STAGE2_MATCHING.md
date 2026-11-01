@@ -1,6 +1,7 @@
 # Stage2：专家参考池与逐帧负样本匹配统计
 
-本入口只建库和统计，不训练模型。Stage2的loss和正式训练预算仍待讨论。
+本入口只建库和统计，不训练模型。独立训练/导出/评测已新增，见[README_STAGE2.md](README_STAGE2.md)。
+该独立入口实现原生FM＋完整可微采样pair loss，预算可配置；本匹配命令不启动它。
 用户授权本独立参考池使用专家40；Stage1仍保持专家只参加FM、CAP只查询VLA正库的规则。
 
 **本版Stage2已选定：`configs/libero_pi05_stage2_numeric20.json`，

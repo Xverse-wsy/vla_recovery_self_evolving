@@ -5,6 +5,11 @@
 
 ## 独立的恢复片段匹配实验
 
+最新授权新增独立Stage2训练/导出/评测入口并做有界GPU验证；不启动正式长训/完整评测。
+只增加stage2_*模块和脚本，禁止修改Stage1或共享执行代码。此前matching-only限制为历史记录。
+独立Stage2操作文档为pi05_recovery_pair/README_STAGE2.md，入口scripts/run_stage2_pipeline.sh；
+环境配置独立用scripts/stage2.env.example，不覆盖Stage1的env。GPU验证/短评测不代表正式长训完成。
+
 新增 `pi05_recovery_pair/` 是独立的四类片段建库、状态匹配、成功片段后缀入池及
 FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`DATA_CONTRACT.md`、
 `VALIDATION.md`，按该目录的配置和命令运行；本文件以下A60/B80实验定义适用于根目录。

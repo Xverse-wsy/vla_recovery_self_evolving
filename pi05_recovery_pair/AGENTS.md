@@ -4,6 +4,17 @@ Read README_STAGE1.md, RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALID
 experiment, not the old full-model SFT trainer. Do not alter existing datasets,
 CAP-X code, RLinf code or old training configs to run it.
 
+- NEW user authorization: implement independent Stage2 prepare/train/export/eval
+  entries and bounded real GPU validation. New stage2_* modules/scripts may read
+  existing shared functions but MUST NOT MODIFY any Stage1/shared runtime code,
+  Stage1 configs or existing datasets. Formal long training/evaluation is not
+  started for implementation validation. Current implementation uses the existing
+  full differentiable Euler pair objective, not a single-time clean-action proxy.
+  This supersedes earlier matching-only restrictions below for new Stage2 files.
+  Read README_STAGE2.md for the separate pipeline/env and full-flow objective.
+  Formal Stage2 requires a completed native 50-epoch Stage1 checkpoint from the
+  same Stage1 prepared pool; incomplete weights are only allowed for <=2-update
+  smoke. Formal optimizer/reuse budget restarts at the stage boundary.
 - CURRENT Stage2 selection (user approved 2026-11-01): use the EXISTING
   configs/libero_pi05_stage2_numeric20.json: 2cm/10deg/state8 RMS0.20,
   image0.002 per view, max50 candidates, max3 references, min3 effective steps.

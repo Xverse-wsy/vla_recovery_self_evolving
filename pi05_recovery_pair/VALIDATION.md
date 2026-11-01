@@ -656,3 +656,37 @@ GPU0最终实测：`outputs/epoch50_fm_gpu0_20261031_v1/`，4次有界真实更�
 两个逻辑更新的loss分别0.1396003845004543、0.16005255085224235。
 无validation窗口；峰值allocated12.542GiB、reserved12.916GiB，allocator上限17GiB；
 验证主体374.74秒，screen正常完成。正式50轮训练、H100/16卡及本版LIBERO评测未执行。
+
+
+## 2026-11-01：独立Stage2训练、导出与三模型评测入口
+
+新增Stage2文件读取既有Stage1/匹配资产，不修改Stage1或共享执行代码、配置及数据。
+入口和迁移步骤见README_STAGE2.md；实现为原生FM加完整K=3步可微Euler采样的持续pair loss，
+不是单时刻clean-action近似。负样本仅来自VLA错误片段，CAP失败不参加负训练。
+
+本地完整回归121项通过（含双进程Gloo；该项需localhost/IPC权限）。新增检查覆盖独立prepare/audit、
+FM补齐与pair真实动作mask分离、episode均衡与精确恢复、空pair回退、Stage1来源/完成度门禁、
+原资产只读、导出路径保护、多分片汇总和三模型初态一致性。Python/Bash语法检查通过。
+
+A800独立输出根为：
+`/home/wenchaoxu/wsy/vla-recovery-posttrain-loop/training_configs/pi05_recovery_pair/outputs/stage2_train_numeric20_20261101_v1/`。
+
+- `prepared/`：16324个FM窗口，144个可用负起点、26条父episode、205帧去重有效负动作，
+  407组正参考关系；复查2cm/10°/标准化state8 RMS0.20/双视角图像距离各0.002，原输入未覆盖。
+- `validation/`：物理GPU0实际做4次优化更新：先1步并恢复到第2步，另一路独立连续2步。
+  每次逻辑FM64/pair4；真实pair参与梯度，完整部署采样链的前向与反传检查通过。
+  两路最终可训练参数哈希及逐步metrics精确一致，冻结VLM哈希不变。
+  两个逻辑更新loss为0.10819862271286128、0.15747840194915516。
+  峰值allocated约12.54GiB；allocator上限20GiB，启动前另检查4GiB余量，未停止其他用户进程。
+- `validation/exported/`：实际调用新增export入口，GPU重载后训练参数与冻结参数精确一致，
+  原生推理输出有限。`validation/report.json`记录上述检查，状态complete。
+- `stage1_smoke_export/`：新增只读Stage1导出入口通过；不在原Stage1目录写临时文件。
+- `eval_smoke/{fewshot,stage1,stage2}/`：三模型分别在libero_object任务0、1的trial0运行，
+  每条最多20个控制步，共6条有界仿真，worker退出码均0且汇总无重复/遗漏。
+  `eval_smoke/comparison/`已通过相同任务、实际初态SHA256、归一化和推理设置的一致性检查。
+  六条均未在20步内满足LIBERO成功判定，此处只验证执行链路，不作为正式任务成功率。
+
+**验证范围限制：** 初始化使用旧Stage1的第2步checkpoint（原生FM、计划50epoch，但实际未完成50epoch），
+仅通过显式短验证开关放行，正式Stage2入口默认拒绝此权重。
+本次未完成正式Stage1的50epoch、正式Stage2的325更新、完整三模型6000条评测，
+也未在H100/16卡或多节点实测。Stage2优化器/计数独立新建，不继承Stage1优化器。

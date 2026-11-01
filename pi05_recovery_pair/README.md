@@ -8,6 +8,9 @@ RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)�
 专家40加入单独正参考池、VLA负段逐帧查询；这项授权不包含Stage2训练，也不改变Stage1匹配。
 本版Stage2已选用`configs/libero_pi05_stage2_numeric20.json`（2cm/10°/RMS0.20，图像0.002），
 对应144个可用负窗口/26条父轨迹；只改Stage2配置选择，Stage1沿用原配置和实现。
+新增独立Stage2训练、导出、三模型评测入口见[README_STAGE2.md](README_STAGE2.md)，
+配置模板`scripts/stage2.env.example`，命令入口`scripts/run_stage2_pipeline.sh`。
+Stage1仍使用自己的脚本；新增入口不会自动启动正式训练或完整评测。
 完整参数、目录与故障处理另见[RUN_POSITIVE_FM.md](RUN_POSITIVE_FM.md)。
 入口：`scripts/run_positive_fm_pipeline.sh prepare|train|export`，机器配置模板：
 `scripts/positive_fm.env.example`。README后半保留旧pair实验，不属于当前纯FM流程。
