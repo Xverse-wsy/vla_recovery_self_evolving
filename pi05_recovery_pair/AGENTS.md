@@ -13,6 +13,11 @@ CAP-X code, RLinf code or old training configs to run it.
   no inherited neighbor match/suffix expansion. Keep strict existing thresholds.
   All Stage2 references/queries are train, with original split preserved as provenance.
   No pair optimizer/training, replay, API or label changes are authorized.
+- Subsequent user request: compare slightly relaxed Stage2 NUMERIC gates using
+  configs/libero_pi05_stage2_numeric15.json (1.5cm/7.5deg/RMS0.15) and numeric20
+  (2cm/10deg/RMS0.20) in NEW outputs. Keep image0.002, min_pair_steps3, max50
+  candidates, labels and all Stage1 rules unchanged. Preserve strict baseline86.
+  These are matching-only experiments, not new defaults or training authorization.
 - Stage1 scope remains positive-only. Do not start stage 2/pair training.
   README_STAGE1 entry was actually run on A800 GPU0: prepare/train(1 update)/export
   plus exact GPU reload and finite native inference, output stage1_readme_e2e_20261031_v1.
