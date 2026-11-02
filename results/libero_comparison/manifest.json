@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "models": {
+    "baseline": {
+      "episodes": 2000,
+      "successes": 1484,
+      "videos": 2000,
+      "files": {
+        "episodes.jsonl": {
+          "bytes": 863797,
+          "sha256": "4813f3fd38613201cb03b2dcaadda6745780c6feca4e4218e03b71b593104658"
+        },
+        "protocol.json": {
+          "bytes": 668,
+          "sha256": "8295dc34e54ab49d945253a5a0d92a583d2bbc6a9ad9a15b11a353bb5059e15d"
+        },
+        "summary.json": {
+          "bytes": 500,
+          "sha256": "e6baab51605d06e833e883cf1b464de75714aada172842ee59def34b335681de"
+        },
+        "videos.zip": {
+          "bytes": 255345063,
+          "sha256": "5de09a4109dc961c18bddab3e9493f93c2ddcac4d3b5672cbfff417f2ab88358"
+        }
+      }
+    },
+    "a60": {
+      "episodes": 2000,
+      "successes": 1519,
+      "videos": 2000,
+      "files": {
+        "episodes.jsonl": {
+          "bytes": 863691,
+          "sha256": "5a4139ee5665a5e10b572b4eeff0ac5ac79477bc42b9d521a98661b9d97f0fa6"
+        },
+        "protocol.json": {
+          "bytes": 668,
+          "sha256": "4229f5782139bd111c1e8d730df75049c846cf9e5624b3ae220b57f9b1ced9b9"
+        },
+        "summary.json": {
+          "bytes": 503,
+          "sha256": "bb0768d477265cb64bea912b5afae6fd2b68b16de16c5f0686ae7c3610918642"
+        },
+        "videos.zip": {
+          "bytes": 249559423,
+          "sha256": "18cd9a73c5d6c08ca41666835fa24858a4888f508d695098022c8382cd57c74c"
+        }
+      }
+    },
+    "b80": {
+      "episodes": 2000,
+      "successes": 1205,
+      "videos": 2000,
+      "files": {
+        "episodes.jsonl": {
+          "bytes": 864461,
+          "sha256": "a55b6d7b458c2f0b320ef5f66e77e619c75c6157506179ca8b1575a382e1cf1b"
+        },
+        "protocol.json": {
+          "bytes": 668,
+          "sha256": "acaf4a3ce3699bcaea8367e80cffef3f84a441ae7ba456448721d86dfcbe7abb"
+        },
+        "summary.json": {
+          "bytes": 502,
+          "sha256": "9b935f6326cbdfa8afeccf655c0668fdd7d056ed2df683e362e82504fdf31cc2"
+        },
+        "videos.zip": {
+          "bytes": 272656708,
+          "sha256": "e5e9eaddcd29861339f117d068af206689f0d94dfc182a43b05d42e6a50edc0c"
+        }
+      }
+    },
+    "stage1": {
+      "episodes": 2000,
+      "successes": 1268,
+      "videos": 2000,
+      "files": {
+        "episodes.jsonl": {
+          "bytes": 864143,
+          "sha256": "0ca53dc75a42b33432ea6b5b20b26214323050dffc4fbb04b230d5d24d1f3bcb"
+        },
+        "protocol.json": {
+          "bytes": 662,
+          "sha256": "9fc787dc308548e921a9354962e408fb183257dc2ef9834b5a44e36cc19950cc"
+        },
+        "summary.json": {
+          "bytes": 500,
+          "sha256": "6d6ea2f6199855ce93d7a81ce20c1259aec64e37b89bc4d125132f38db3b5880"
+        },
+        "videos.zip": {
+          "bytes": 258688830,
+          "sha256": "1fc5054eb6078df3579ff73d03854a9619c5d91cc4a0e9bda4808e84c0f21a6f"
+        }
+      }
+    }
+  },
+  "episodes_per_model": 2000,
+  "total_episodes": 8000,
+  "total_videos": 8000,
+  "fixed_reference_models": [
+    "baseline",
+    "a60",
+    "b80"
+  ],
+  "measured_model": "stage1",
+  "excluded_fields": [
+    "absolute_paths",
+    "accounts_and_credentials",
+    "deployment_configuration",
+    "hardware_and_memory_information",
+    "wall_clock_timing",
+    "free_form_logs",
+    "training_overlap_annotations"
+  ],
+  "initial_states_identical_across_all_four_models": true,
+  "evaluation_protocol_fields_match_except_weights_and_loading": true,
+  "video_metadata_and_frame_counts_checked": true
+}

@@ -1,0 +1,33 @@
+{
+  "benchmark": "standard_LIBERO",
+  "suites": [
+    "libero_spatial",
+    "libero_object",
+    "libero_goal",
+    "libero_10"
+  ],
+  "tasks": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "trials": 50,
+  "flow_steps": 3,
+  "action_chunk": 5,
+  "seed": 0,
+  "max_steps": 0,
+  "wcm_enabled": false,
+  "capx_enabled": false,
+  "norm_sha256": "dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1",
+  "checkpoint_sha256": "0b575ff54fe8787a10ae32c787f24c027174950f2bb994d4756e111c1c68e340",
+  "scope": "full2000",
+  "checkpoint_load_policy": "not_recorded_in_historical_run",
+  "reference_role": "fixed_historical_reference"
+}
