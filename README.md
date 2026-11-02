@@ -1,132 +1,68 @@
-# π0.5 direct-source A/B experiment
+# π0.5 LIBERO 训练与评测记录
 
-**接手本项目的 agent：先读 [AGENTS.md](AGENTS.md)。** 它列出实验定义、部署顺序、
-代码地图、参数位置、输出/续跑约定和已验证范围；不需要先前对话。
+本仓库提供 A60/B80 训练适配器，以及基于局部片段匹配和成功恢复后缀的 Stage1/Stage2 实验入口。本文汇总已完成实验的成绩、数据配方和操作入口；详细证据与待验证原因见 [RESULTS_AND_DIAGNOSIS.md](RESULTS_AND_DIAGNOSIS.md)。
 
-新增的局部片段匹配、成功恢复后缀入池及 FM/pair 实验位于独立目录
-[pi05_recovery_pair/](pi05_recovery_pair/README.md)。其接手入口是
-[pi05_recovery_pair/AGENTS.md](pi05_recovery_pair/AGENTS.md)，当前规则和实测结果见
-[VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
-新目录有自己的配置、数据要求和命令，不会自动接入根目录的A60/B80流程。
-当前阶段1配置fm_epochs=50：全库每轮打乱无放回遍历，完整50轮；不固定来源配额。
-16324窗口、全局batch64时每轮256更新（尾批4）、合计12800更新。详见子目录README_STAGE1.md。
+## 已完成的评测结果
 
-**本次只运行第一阶段正向FM**，请先读
-[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。完整操作细节见
-[RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)：
-`cd pi05_recovery_pair`，配置`scripts/positive_fm.env.example`，再分阶段执行
-`scripts/run_positive_fm_pipeline.sh prepare|train|export`。
-它使用原始专家40、VLA正片段和匹配成功的CAP后缀，全部用于训练；专家不进入匹配库。
-当前16324个逐帧窗口，VLA中途片段不补齐；这与下方A60/B80配方分别配置。
+每个模型均完成四个标准 LIBERO suite、每个 suite 10 个任务、每任务 50 个预设初始状态，共 2,000 条评测。Baseline、A60、B80 的既有成绩保留为固定参考值，不安排复评；Stage1 使用本次完成的评测结果。
 
-This directory contains the external training/evaluation adapter. It reads the
-existing three selected datasets directly; it does not create merged datasets
-or modify the original datasets, RLinf source, or base model.
+| 参考排名 | 模型 | Spatial | Object | Goal | LIBERO-10 | 总成功数 | 总成功率 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | A60 | 87.20% | 98.40% | 85.60% | 32.60% | 1,519 / 2,000 | **75.95%** |
+| 2 | Baseline | 85.00% | 99.20% | 83.60% | 29.00% | 1,484 / 2,000 | **74.20%** |
+| 3 | Stage1 | 75.20% | 86.60% | 76.00% | 15.80% | 1,268 / 2,000 | **63.40%** |
+| 4 | B80 | 71.80% | 90.80% | 63.20% | 15.20% | 1,205 / 2,000 | **60.25%** |
 
-For a new Linux GPU machine, follow [ENVIRONMENT.md](ENVIRONMENT.md). Install
-`requirements.txt` for training and `requirements-eval.txt` in a separate
-evaluation environment using `install_environment.sh`.
+Stage1 比固定 B80 参考值高 3.15 个百分点，比 Baseline 低 10.80 个百分点，比 A60 低 12.55 个百分点。本轮未达到超过 A60 的目标。
 
-For editable data paths, batch/GPU settings and a complete
-train-A → train-B → evaluate-original/A/B pipeline, see [RUNNING.md](RUNNING.md).
-Copy `experiment.env.example` to `experiment.env`, edit it, then run
-`bash run_experiment.sh plan` before `bash run_experiment.sh all`.
+**比较口径：** A60/B80 的历史评测加载流程存在部分 FP32 参数经 BF16 中转产生舍入的问题；Stage1 已使用 dtype 配置后重新加载完整权重的流程。表格是固定历史参考值与新结果的对照，不是统一加载实现下的受控排名。舍入对历史成功率的影响未测量；Stage1 的训练初始状态与评测初始状态重合情况尚未核实。
 
-## Experiments
+## 数据配方与训练状态
 
-| Name | Trajectories | Training frames | Initialization |
-| --- | --- | --- | --- |
-| `a60` | author40 + autonomous20 | 9,864 | original RLinf few-shot π0.5 |
-| `b80` | same 60 + recovery20 | 53,399 | original RLinf few-shot π0.5 |
+| 实验 | 数据 | 训练样本或窗口 | 训练情况 |
+| --- | --- | ---: | --- |
+| Baseline | 原始 π0.5 LIBERO SFT 模型 | — | 本次不再训练 |
+| A60 | 专家 40 条＋自主成功 20 条 | 9,864 帧 | 全参数训练 50 epoch，3,900 次更新 |
+| B80 | A60 相同数据＋恢复成功 20 条 | 53,399 帧 | 全参数训练 50 epoch，20,900 次更新 |
+| Stage1 | 专家、自主成功、中途 VLA 正向片段和准入 CAP 成功后缀 | 16,324 个窗口 | 冻结 VLM，纯正向 FM 训练 50 epoch，12,800 次更新 |
 
-Both configurations run 50 complete epochs. Every real frame appears once per
-epoch; action windows stop at episode boundaries. With the default global batch
-100, A has 4,950 updates and B has 26,700 updates. The final update of an epoch
-can be smaller. Both use the original checkpoint's normalization statistics.
+A60、B80 独立从原始模型初始化，实际实验使用 global batch 128，每轮完整遍历所有真实帧，沿用原模型归一化统计。仓库默认配置与已完成运行的参数不一定相同，复现实验前应核对最终配置。
 
-## Environment on A800
+Stage1 的窗口构成为专家 6,632、自主成功 3,232、中途 VLA 4,727、CAP 成功后缀 1,733；全部用于训练。匹配步长为 10，训练起点逐帧滑动。中途 VLA 片段只保留完整动作窗口，专家、自主成功和 CAP 成功尾部允许重复末动作监督。训练和完整评测均已完成。
 
-```bash
-export PI05_ROOT=/home/wenchaoxu/wsy/vla-recovery-posttrain-loop
-export PACKAGE="$PI05_ROOT/training_configs/pi05_ablation_direct_20261029"
-export PI05_TRAIN_PYTHON="$PI05_ROOT/environment-setup/.venv-pi05-sft/bin/python"
-export PI05_EVAL_PYTHON=/home/wenchaoxu/miniconda3/envs/corrector-eval/bin/python
-```
+Stage2 已有独立代码入口，本记录不提供其正式长训或完整评测成绩。短验证不能替代完整实验结果。
 
-## Short validation
+## 操作入口
+
+接手项目先读 [AGENTS.md](AGENTS.md)。数据、模型、环境与输出目录由本地配置提供，运行产物和私有配置不随本记录提交。
+
+| 工作 | 入口 |
+| --- | --- |
+| 安装训练与独立评测环境 | [ENVIRONMENT.md](ENVIRONMENT.md) |
+| A60/B80 参数、执行顺序与续跑 | [RUNNING.md](RUNNING.md) |
+| 局部片段匹配的数据要求 | [片段实验 README](pi05_recovery_pair/README.md) |
+| Stage1 训练定义 | [README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md) |
+| Stage1 准备、训练与导出 | [RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md) |
+| 独立 Stage2 流程及 Stage1/Stage2 评测入口 | [README_STAGE2.md](pi05_recovery_pair/README_STAGE2.md) |
+| 已有验证范围 | [VALIDATION.md](pi05_recovery_pair/VALIDATION.md) |
+
+A60/B80 从仓库根目录执行。先复制并填写本地配置，再检查计划；正式入口会启动长训与完整评测：
 
 ```bash
-PI05_VALIDATION_GPUS=1,3 bash "$PACKAGE/run_validation.sh"
+cp experiment.env.example experiment.env
+# 按 RUNNING.md 填写本地资源与输出配置。
+bash run_experiment.sh plan
+bash run_experiment.sh all --smoke
+# 短验证通过并确认正式运行范围后执行。
+bash run_experiment.sh all
 ```
 
-This checks the source reader against LeRobot, exact epoch sampling (including
-16-rank CPU gradient references), two isolated 15-sample/two-epoch training runs,
-checkpoint recovery, and original/A/B evaluation on one initial state in one
-task per suite. These small evaluations verify execution, not model quality.
-The final report is `validation_report.json` under the run directory referenced
-by `latest_validation.txt`. Videos and episode records are saved there too.
+已有运行可用 `bash run_experiment.sh all --resume` 续跑，保持数据、batch、并行配置和输出目录一致。单独训练或评测使用 `train` / `eval` 子命令；上面的 A60/B80 总入口不会自动运行 Stage1。
 
-## Formal training commands (not launched by validation)
+Stage1 使用 `pi05_recovery_pair/scripts/run_positive_fm_pipeline.sh prepare|train|export` 分阶段执行，完整评测使用独立评测入口。`stage2_evaluate_parallel.py --label stage1` 支持 Stage1 导出权重，具体环境和必需参数见 Stage2 操作文档；名称中的 Stage2 不表示会启动 Stage2 训练。
 
-```bash
-export PI05_GPUS=1,3
-bash "$PACKAGE/run_train.sh" --experiment a60 --output "$PI05_ROOT/training_runs/a60_epoch50"
-bash "$PACKAGE/run_train.sh" --experiment b80 --output "$PI05_ROOT/training_runs/b80_epoch50"
-```
+## 评测与后续排查
 
-Run A and B sequentially if they share GPUs. Specify unused output directories.
-Microbatch and accumulation are configurable, for example:
+已完成评测使用 seed 0、3 个 flow steps、预测窗口长度 10、每次执行 5 个动作。Spatial、Object、Goal、LIBERO-10 的步数上限分别为 240、240、320、512，均不启用 WCM 或 CAP-X 在线恢复。完整汇总要求所有分片覆盖全部任务与初始状态，不能将部分完成的结果当作最终成绩。
 
-```bash
-bash "$PACKAGE/run_train.sh" --experiment a60 --output "$PI05_ROOT/training_runs/a60_custom" \
-  --micro-batch-size 2 --gradient-accumulation-steps 25 \
-  --gpu-memory-limit-gib 40 --gpu-headroom-gib 12
-```
-
-Global batch = number of ranks × microbatch × accumulation. Alternatively pass
-`--global-batch-size` (must divide by ranks × microbatch). Epoch/update counts
-are recalculated. Allocator limits do not include every CUDA/context allocation;
-headroom is checked before loading. No launcher kills existing processes.
-
-`--gpus` uses RLinf physical/global GPU indices. Multi-node runs additionally
-require `--num-nodes` and an existing `--ray-address`. Only two-GPU execution has
-been tested on A800; 16-H100 hardware placement and communication still need a
-short validation on that hardware before formal training.
-
-Save interval is 500 optimizer updates, with the latest three checkpoints kept
-and a final checkpoint always saved. Resume with the same experiment, batch,
-GPU count, data, and output directory plus
-`--resume /absolute/path/to/checkpoints/global_step_N`.
-
-## Full evaluation commands (not launched by validation)
-
-Set `PI05_A_CHECKPOINT` and `PI05_B_CHECKPOINT` to the final checkpoint **actor**
-directories, then run:
-
-```bash
-export PI05_EVAL_GPU=1
-export PI05_EVAL_OUTPUT="$PI05_ROOT/evaluations/pi05_ab_full"
-bash "$PACKAGE/evaluate_three.sh"
-```
-
-For automatic episode partitioning across GPUs, set `PI05_EVAL_GPUS` instead:
-
-```bash
-export PI05_EVAL_GPUS=0,1,2,3,4,5,6,7
-bash "$PACKAGE/evaluate_three.sh"
-```
-
-Each GPU runs a separate model copy and a disjoint set of episodes. Each model
-still evaluates 2,000 total episodes across all GPUs. The launcher pins both
-inference and EGL rendering to the selected GPU, writes separate worker logs,
-and merges only after checking complete coverage and matching checkpoint hashes.
-Use `--resume` with the same shard count to continue. See ENVIRONMENT.md for
-multi-node evaluation with a shared output directory.
-
-Defaults evaluate all four standard LIBERO suites, all ten tasks, and all fifty
-initial states: 2,000 episodes per model. WCM and CAP-X are disabled. Identical
-seeds, initial states, and suite budgets are used across models. Reports mark
-initial states shared with rollout training data. `--resume` skips completed
-episodes after checking run settings. Videos are saved unless `--no-video` is
-passed. `compare_results.py` checks matching episode identities and writes the
-comparison reports.
+后续关注 Stage1 的数据构成、训练预算和可训练参数范围，实验建议与事实依据见结果记录。当前没有证据证明单一因素导致全部性能差距，也没有启动新的训练或对照组复评。
