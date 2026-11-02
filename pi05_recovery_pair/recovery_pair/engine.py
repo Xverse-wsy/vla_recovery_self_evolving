@@ -49,6 +49,9 @@ def _accumulate_update(backend, observation_loader, records, plan, config, *, up
                       total_updates, draws=None, mode='continuous_pair', backward=True):
     if mode not in ('continuous_pair', 'pull_only', 'fm_only'):
         raise ValueError('Unknown ablation mode')
+    native_sft = config.training_recipe == 'stage1_a60_sft_v1'
+    if native_sft and mode != 'fm_only':
+        raise ValueError('A60-aligned Stage1 may only use fm_only')
     config.validate()
     by_id = {r.sample_id: r for r in records}
     device = next(backend.parameters()).device
@@ -85,6 +88,9 @@ def _accumulate_update(backend, observation_loader, records, plan, config, *, up
         # Invalid recorded targets must not influence valid predictions through
         # action-token attention before the masked loss is computed.
         target = torch.where(mask, target, torch.zeros_like(target))
+        if native_sft:
+            from .a60_recipe import full_sft_mask
+            mask = full_sft_mask(mask, config)
         element_loss = fm_loss_elements(backend, observation_loader(selected), target,
             noise=draws['fm_noise'][ids].to(device), time=draws['time'][ids].to(device))
         if element_loss.shape != mask.shape:

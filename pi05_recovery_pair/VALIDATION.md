@@ -1,4 +1,17 @@
-# 验证记录：2026-10-30
+# 验证记录
+
+## 2026-11-03：当前方案1、A60全参数Stage1
+
+当前操作以README_STAGE1.md为准，下文2026-10/11的冻结配方与16,324窗口是历史记录。
+
+- 本机本轮训练/匹配回归：125 passed、3 skipped（RLinf/OmegaConf环境缺失）；来源/转换/严格建库：20 passed。
+- A800真实RLinf环境本轮原生AdamW/warmup/cosine、epoch与恢复、Stage2兼容CPU检查26项通过，覆盖本机跳过的3项。
+- 当前资产13,407窗口、13,767去重真实动作；专家6632、自主3232、VLA推进3543窗口/3903帧；CAP准入0。
+- 全部窗口逐项对照旧库起点/动作/mask/准入范围完全一致，100个原Parquet动作对齐误差0。5个真实输入探针与A60原reader/原生变换的图像/token/FP32 state一致，动作差异<2.4e-7。
+- GPU0全参数验证已完成4次更新（恢复2次、连续2次），原生FM误差0、视觉非零梯度，最终权重和全部日志精确一致。验证batch2/micro1；生产配置batch128/micro2，测试不替代正式50轮。
+- GPU峰值allocated32.4176GiB，allocator上限48GiB；未终止其他进程。报告位于A800的training_configs/pi05_a60_alignment_20261103/gpu_validation_v1/report.json，HF资产也包含。
+- 本轮生产global128/micro1的GPU0短测已完成2更新、256窗口，allocator40GiB；loss为0.00742006/0.00776234，梯度有限。reason=requested_update_limit，epochs_completed=0，已自动退出并释放GPU；checkpoint保存完成。独立输出training_runs/pi05_stage1_a60_batch128_smoke_20261103_v1/，未启动正式50轮或LIBERO完整评测。
+- H100/16卡、跨机器全新安装、正式50epoch与任务成功率改善未列为通过实测。旧Stage2不能直接加载新Stage1目标。
 
 ## 2026-11-01：Stage2数值门槛放宽对照
 

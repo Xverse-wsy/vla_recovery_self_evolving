@@ -1,4 +1,4 @@
-"""Adapter for RLinf c70606f Pi0.5; frozen prefix, differentiable expert.
+"""RLinf Pi0.5 adapter: full-model Stage1 or legacy frozen-prefix pair training.
 
 No monkeypatch of inference decorators, no calls to sft_forward (which disables
 checkpointing). Native sample_actions remains the forward-parity reference.
@@ -20,7 +20,7 @@ class PrefixCondition:
 
 
 class OpenPiBackend(torch.nn.Module):
-    def __init__(self, policy, steps=3, fm_augmentation=False):
+    def __init__(self, policy, steps=3, fm_augmentation=False, *, full_model_sft=False):
         super().__init__()
         required = ['freeze_vlm', 'build_prefix_cache', 'run_suffix', 'velocity_from_suffix', 'sample_actions', 'compute_loss']
         if not all(callable(getattr(policy, name, None)) for name in required):
@@ -29,13 +29,22 @@ class OpenPiBackend(torch.nn.Module):
             raise ValueError('First version requires pi05=True, use_rlt=False')
         self.policy = policy
         self.horizon, self.action_dim, self.deployment_steps = policy.action_horizon, policy.action_dim, steps
-        self.fm_augmentation = fm_augmentation
+        self.fm_augmentation = bool(fm_augmentation or full_model_sft)
+        self.full_model_sft = bool(full_model_sft)
         # Use upstream's explicit expert0/expert1 freeze implementation.
         policy.requires_grad_(True)
-        policy.freeze_vlm(freeze_action_expert=False)
-        policy.eval()  # Match deployment and avoid dropout across the K-step chain.
-        if any(p.requires_grad for p in policy.img.parameters()):
-            raise RuntimeError('Vision encoder was not frozen')
+        if full_model_sft:
+            policy.train()
+            # Native A60 sft_forward disables activation checkpointing too.
+            if callable(getattr(policy, 'gradient_checkpointing_disable', None)):
+                policy.gradient_checkpointing_disable()
+            if not all(p.requires_grad for p in policy.parameters()):
+                raise RuntimeError('A60-aligned Stage1 requires all model parameters trainable')
+        else:
+            policy.freeze_vlm(freeze_action_expert=False)
+            policy.eval()  # Legacy / Stage2 sampling behavior stays unchanged.
+            if any(p.requires_grad for p in policy.img.parameters()):
+                raise RuntimeError('Vision encoder was not frozen')
         if not any(p.requires_grad for p in policy.action_out_proj.parameters()):
             raise RuntimeError('Action projections must remain trainable')
 
@@ -76,6 +85,9 @@ class OpenPiBackend(torch.nn.Module):
 
 
 def load_backend(checkpoint, norm_stats, config, device='cpu'):
+    if config.training_recipe == 'stage1_a60_sft_v1':
+        from .a60_recipe import validate_training_settings
+        validate_training_settings(config)
     import rlinf
     from .source_identity import verify_installed_rlinf
     identity=verify_installed_rlinf(rlinf,RLINF_COMMIT)
@@ -97,7 +109,8 @@ def load_backend(checkpoint, norm_stats, config, device='cpu'):
     policy = policy.to(device)
     if (policy.action_horizon, policy.action_dim) != (config.horizon, config.action_dim):
         raise ValueError('Checkpoint model shape disagrees with window specification')
-    backend=OpenPiBackend(policy, config.flow_steps)
+    backend=OpenPiBackend(policy, config.flow_steps,
+        full_model_sft=config.training_recipe == 'stage1_a60_sft_v1')
     backend.source_identity=identity
     return backend
 

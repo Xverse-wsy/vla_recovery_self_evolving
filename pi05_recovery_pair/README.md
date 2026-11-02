@@ -4,6 +4,10 @@
 RLinf 或旧 SFT 配方。实际验证范围见 [VALIDATION.md](VALIDATION.md)。
 
 训练当前只运行第一阶段，请先读 **[README_STAGE1.md](README_STAGE1.md)**。
+2026-11-03：当前Stage1为`stage1_a60_sft_v1`，全参数、原生训练预处理、H10×32 FM，
+AdamW/调度复用A60。下文2026-10-31冻结VLM/batch64/只统计7维的内容属于历史配方，
+不得用来启动当前Stage1。方案1新库的重建入口见
+[README_SCHEME1_STAGE1.md](../recovery_conversion/README_SCHEME1_STAGE1.md)。
 新增独立Stage2匹配统计入口见[README_STAGE2_MATCHING.md](README_STAGE2_MATCHING.md)：
 专家40加入单独正参考池、VLA负段逐帧查询；这项授权不包含Stage2训练，也不改变Stage1匹配。
 本版Stage2已选用`configs/libero_pi05_stage2_numeric20.json`（2cm/10°/RMS0.20，图像0.002），
@@ -15,7 +19,7 @@ Stage1仍使用自己的脚本；新增入口不会自动启动正式训练或�
 入口：`scripts/run_positive_fm_pipeline.sh prepare|train|export`，机器配置模板：
 `scripts/positive_fm.env.example`。README后半保留旧pair实验，不属于当前纯FM流程。
 
-## 当前纯正向 FM 版本（2026-10-31）
+## 历史纯正向 FM 版本（2026-10-31，冻结配方）
 
 最新方案训练原始专家40＋现有正池，不使用负样本或pair loss。普通FM仍随机采样原生时间和噪声，
 监督速度方向；没有实现单时间点clean-action吸引／排斥，也不启动该训练分支。

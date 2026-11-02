@@ -39,18 +39,19 @@ elif 'numeric-preview' in args or 'recovery_pair.vision_trial' in args or 'recov
     option('--output').mkdir(parents=True)
 elif 'prepare-positive-fm' in args:
     p=option('--output');p.mkdir(parents=True)
+    (p/'config.json').write_text(option('--config').read_text())
     (p/'report.json').write_text(json.dumps(dict(split_policy='all_train_v1',validation_enabled=False,
         positive_windows=16324,training_budget=dict(sampling_policy='positive_epoch_permutation_v1',
-        target_epochs=50,windows_per_epoch=16324,expected_updates=12800,drop_last=False,pad_last=False))))
+        target_epochs=50,windows_per_epoch=16324,expected_updates=6400,drop_last=False,pad_last=False))))
 ''')
     wrapper.chmod(0o755)
     env = dict(os.environ, PAIR_PYTHON=str(wrapper), PAIR_DATA_ROOT=str(root),
         PAIR_CHECKPOINT=str(checkpoint), PAIR_NORM_STATS=str(norm),
         PAIR_SOURCES=str(sources), PAIR_CONFIG=str(code/'configs/libero_pi05_positive_fm.json'),
         PAIR_RUN=str(tmp_path/'run with spaces'), PAIR_VISION_GPU='2',
-        CUDA_VISIBLE_DEVICES='1,3', NPROC_PER_NODE='2',RECORD_COMMANDS=str(log))
+        CUDA_VISIBLE_DEVICES='1,3', NPROC_PER_NODE='2',RECORD_COMMANDS=str(log),PAIR_TRAIN_MEMORY_GIB='60')
     def run(stage):
-        subprocess.run(['bash',str(script),stage],env=env,check=True,capture_output=True,text=True)
+        return subprocess.run(['bash',str(script),stage],env=env,check=True,capture_output=True,text=True)
     def calls():
         return [json.loads(x) for x in log.read_text().splitlines()]
     run('prepare')
@@ -77,6 +78,16 @@ elif 'prepare-positive-fm' in args:
     run('train')
     single=calls()[-1]['args']
     assert 'torch.distributed.run' not in single and '--resume' in single
+    # Reusing immutable prepared data in a NEW run may use another global
+    # batch. Its runtime budget must not be confused with the prepared report.
+    algorithm=Path(env['PAIR_RUN'])/'algorithm.json'
+    original=algorithm.read_text()
+    configured=json.loads(original);configured['fm_batch']=64
+    algorithm.write_text(json.dumps(configured))
+    result=run('train')
+    assert '"expected_updates": 12800' in result.stdout
+    assert json.loads((Path(env['PAIR_RUN'])/'prepared/report.json').read_text())['training_budget']['expected_updates']==6400
+    algorithm.write_text(original)
     env['PAIR_EXPORT_CHECKPOINT']='/trusted/update_000100.pt'
     run('export')
     assert calls()[-1]['args']==['-u','-m','recovery_pair','export','--checkpoint',

@@ -1,174 +1,36 @@
-# Recovery pair experiment: handoff
+# Stage1/Stage2接手入口
 
-Read README_STAGE1.md, RUN_POSITIVE_FM.md, README.md, DATA_CONTRACT.md and VALIDATION.md first. This is a new independent
-experiment, not the old full-model SFT trainer. Do not alter existing datasets,
-CAP-X code, RLinf code or old training configs to run it.
+当前操作文档是 [README_STAGE1.md](README_STAGE1.md)；来源与重建工具见 [README_SCHEME1_STAGE1.md](../recovery_conversion/README_SCHEME1_STAGE1.md)，验证见 [VALIDATION.md](VALIDATION.md)。先按当前文档操作，不从README后半的历史pair实验启动本轮。
 
-- NEW user authorization: implement independent Stage2 prepare/train/export/eval
-  entries and bounded real GPU validation. New stage2_* modules/scripts may read
-  existing shared functions but MUST NOT MODIFY any Stage1/shared runtime code,
-  Stage1 configs or existing datasets. Formal long training/evaluation is not
-  started for implementation validation. Current implementation uses the existing
-  full differentiable Euler pair objective, not a single-time clean-action proxy.
-  This supersedes earlier matching-only restrictions below for new Stage2 files.
-  Read README_STAGE2.md for the separate pipeline/env and full-flow objective.
-  Formal Stage2 requires a completed native 50-epoch Stage1 checkpoint from the
-  same Stage1 prepared pool; incomplete weights are only allowed for <=2-update
-  smoke. Formal optimizer/reuse budget restarts at the stage boundary.
-- CURRENT Stage2 selection (user approved 2026-11-01): use the EXISTING
-  configs/libero_pi05_stage2_numeric20.json: 2cm/10deg/state8 RMS0.20,
-  image0.002 per view, max50 candidates, max3 references, min3 effective steps.
-  Selected A800 matching output: outputs/stage2_dense_expert_numeric20_20261101_v1
-  (144 negative windows,26 parent episodes,205 unique effective action frames).
-  This supersedes historical Stage2 strict/experimental-only notes below.
-  Do NOT change ANY Stage1 code/config/data, shared matching implementation or
-  configs/libero_pi05.json to apply this selection. No training is authorized.
-- Latest user authorization (2026-11-01): implement and RUN Stage2 MATCHING ONLY,
-  via recovery_pair.stage2_matching. Add expert40 as explicitly identified positive
-  REFERENCES in this separate pool; dense every-real-frame VLA-negative queries.
-  Preserve Stage1 FrozenMatcher expert rejection and all Stage1 assets/configs.
-  Reuse exactly Stage1 admitted dense positive scopes, with FM synthetic repeats
-  excluded from pair masks. Every negative start is independently matched;
-  no inherited neighbor match/suffix expansion. Keep strict existing thresholds.
-  All Stage2 references/queries are train, with original split preserved as provenance.
-  No pair optimizer/training, replay, API or label changes are authorized.
-- Subsequent user request: compare slightly relaxed Stage2 NUMERIC gates using
-  configs/libero_pi05_stage2_numeric15.json (1.5cm/7.5deg/RMS0.15) and numeric20
-  (2cm/10deg/RMS0.20) in NEW outputs. Keep image0.002, min_pair_steps3, max50
-  candidates, labels and all Stage1 rules unchanged. Preserve strict baseline86.
-  These were matching-only experiments; numeric20 is now selected for Stage2.
-  This is not training authorization.
-- Stage1 scope remains positive-only. Do not start stage 2/pair training.
-  README_STAGE1 entry was actually run on A800 GPU0: prepare/train(1 update)/export
-  plus exact GPU reload and finite native inference, output stage1_readme_e2e_20261031_v1.
-  This is not full-budget training or H100/16-GPU verification.
-- Latest requested baseline (2026-10-31): prepare-positive-fm consumes the existing
-  admitted positive_pool, uses native FM only and no negative/pair branch. Use
-  configs/libero_pi05_positive_fm.json and train --mode fm_only. Preserve matching,
-  suffix scope. Latest user correction: INCLUDE the original expert40 via --expert-dataset
-  AFTER matching, with controller=expert/D_expert_positive. Experts NEVER enter VLA
-  banks or matching. Latest override: fm_epochs=50, shuffled full positive-pool
-  permutations WITHOUT replacement. No source quota: each window once/epoch.
-  16324 windows/B64 -> 256 updates/epoch, last batch4; 12800 updates/50epochs.
-  Keep partial tails; actual global batch normalization, empty ranks join zero-grad SUM.
-  vla_fraction/fm_only_updates/max_episode_reuses inactive in epoch mode.
-  Latest verification:109 local CPU tests pass; all50 real-data sampling epochs
-  audited exactly once/window/epoch, unchanged actions/masks/start observations.
-  epoch50_fm_gpu0_20261031_v1:4 bounded native FM updates, uninterrupted/resume
-  final trainable hash AND all metrics EXACTLY equal, frozen unchanged;
-  all16324 windows/114Parquets source alignment error0; peak allocated12.542GiB.
-  Full50-epoch training and H100/16-rank real GPU runs were NOT executed.
-  Exact cursor/inventory checked on restart; use NEW prepared/run, no legacy resume.
-  Expert terminal tails may repeat; intermediate VLA tails still MUST NOT pad.
-  Source recorded fps10 is preserved separately from native LIBERO control_hz20; no resampling.
-  Use new prepared/training directories; no resume of old no-expert artifacts.
-  Latest request: dense TRAINING starts
-  every frame inside the SAME admitted positive scopes. Matching stays state_stride=10;
-  never densify or redo matching to implement dense training. Keep original input_manifest
-  and successful suffix provenance. No padding of intermediate VLA positive tails.
-  New policy positive_fm_dense_source_tail_v2; use a new output, no old sparse resume.
-  Historical no-expert dense artifact: 9692 all-train windows, 10052 unique real frames.
-  Current expert40 artifact: 16324 windows, 16684 unique real frames; 96 CPU tests pass.
-  expert40_dense_fm_gpu0_20261031_v1: expert full/tail native FM probes and ONE mixed
-  update passed (expert21/VLA27/code16), frozen VLM unchanged, peak allocated10.57GiB.
-  All original9692 rollout windows were compared exactly unchanged in actions/masks/observations/scope.
-  A800 GPU0 dense_fm_gpu0_20261031_v1: three native FM gradient probes and ONE update
-  passed, frozen weights unchanged, peak allocated10.57GiB. No new dense export/reload.
-  Latest user override: prepare with --all-train. Move ALL already-admitted positives
-  to train, retaining fm_original_split; no validation/test or validation early stop.
-  Do not rematch or admit additional CAP windows. Preserve old immutable artifacts.
-  Without flag, old preserve-split behavior remains available for reproducibility.
-  Intermediate VLA progress windows require a full REAL H-step horizon; drop short
-  tail windows. Autonomous successful episodes and admitted CAP-success suffixes
-  may repeat the last real action to H, and these repeats ARE supervised by FM.
-  Keep model padding dimensions invalid; real_action_mask separately traces repeats.
-  Source-aware prepared artifacts cannot be used by pair modes. Do not overwrite
-  the old matching libraries/payloads. Current explicit budget is fm_epochs=50.
-  Do not start formal training during this configuration/validation task.
-  User subsequently authorized a bounded real GPU0 validation and pushing after it
-  passes: python -m recovery_pair.fm_validation. Latest review runs two resumed
-  and two uninterrupted FM updates and requires EXACT final-weight/metric parity,
-  plus source-Parquet alignment and native loss/gradient/frozen-weight audits.
-  Check free GPU memory; keep the allocator cap plus4GiB margin. This is not long training.
-  Real-model FM MUST call policy.compute_loss with explicit native noise/time;
-  do not substitute cached-prefix forward for native joint prefix/suffix SFT.
-  The engine masks/reduces returned element losses. Keep the cache for sampling.
-  Pure-FM heldout evaluation visits all positive validation windows once without
-  autograd. Draw CPU flow time with the CPU generator only, never reset CUDA RNG.
-  Checkpoint objective_version rejects silent resume of earlier cached-FM runs.
-  Optional export_validation calls the actual documented export CLI, reloads its
-  full_weights via the pinned RLinf loader on GPU and verifies exact frozen/expert
-  parameters and finite native inference. It writes a NEW output, never base weights.
-  Keep checkpoint_io.restore_full_checkpoint_after_dtype_setup in backend AND root
-  evaluate.py: upstream's initial full-model bf16 cast otherwise rounds trained fp32
-  islands before recasting them to fp32. Safetensors base path remains unchanged.
-  Evaluation identity includes checkpoint_load_policy; do not mix older eval outputs.
+## 最新授权
 
-- User's current experiment uses the EXISTING four segment classes as training
-  labels. Do not require another local-action review to use them. Preserve their
-  actual WCM/program-completion provenance; do not fabricate verified_local_actions.
-- Reuse existing selection.json and segment boundaries to build four libraries FIRST.
-  bank_class supplies training_quality. local_quality/trusted_error_mask may supply
-  optional finer evidence; unknown does not block existing-class training.
-  Do not require an encoder or calibrated matching to create libraries.
-- Split whole parents/initial groups before windowing. Handoff state-only records
-  belong in S_vla_all, not the four segment libraries. Post-matching eligible_banks
-  must remain separate from the original classified banks.
-- Portable CPU entry: `python -m recovery_pair build-libraries --sources-config
-  configs/data_sources.example.json --data-root /new/server/root --output /new/output`.
-  Dataset paths resolve under data-root; algorithm_config resolves beside source
-  config. Never treat A800 absolute output indexes as portable training assets.
-- Original expert40 is not a VLA rollout. Do not silently add it to S_vla_all.
-- Group by initial scene AND full parent episode before matching/calibration.
-- FIRST match CAP-success windows against the frozen VLA-POSITIVE bank only.
-  Latest preset uses cap_success_admission=segment_suffix: if a successful program
-  has any match, admit its continuous suffix from the EARLIEST matched window start
-  to that SAME original program segment's end. Preserve every later recorded action;
-  never prepend unmatched actions or extend to other/failed programs. Downstream
-  windows are admitted by successful-segment provenance, not individually matched.
-  Trace suffix anchor, its VLA reference and exact original row range. Generic
-  Config defaults to matched_window for compatibility with previous output assets.
-  Bad/unknown/handoff VLA states
-  remain in the state inventory but cannot admit CAP successes. Never chain via code.
-- Current coverage preset: 5cm/30deg/RMS0.50/image0.007 (both RGB views).
-  Strict negative pairing stays 1cm/5deg/RMS0.10/image0.002. User accepts visible
-  object-layout differences; old qualitative incompatibility reviews are not vetoes.
-- Portable admission entry: scripts/run_success_admission.sh or
-  python -m recovery_pair.success_admission. Check complete numeric candidate
-  feature coverage before matching; missing features must not silently reject a
-  candidate. Success-only outputs do not claim full negative pairing is prepared.
-- Latest negative_query_policy=vla_failure_only_v1: ONLY VLA-error windows query
-  the positive pool for strict pairing. CAP-failure segments keep their original
-  labels in source libraries, but are excluded from the eligible negative pool,
-  matching and pair training. Positive references still include VLA positives plus
-  admitted CAP-success suffixes. Existing VLA-negative windows use valid action
-  elements as the error mask unless finer evidence exists. Record this mask basis.
-  Rebuild older prepared assets without this policy marker before training.
-- Complete real negative-count entry: python -m recovery_pair.negative_matching
-  --windows ... --admission ... --checkpoint ... --config ... --output ... .
-  Reuse verified success-admission features and encode only missing numeric-candidate
-  start RGB. Keep thresholds fixed; separately report state matches and action-valid
-  pairs, counting each original negative episode once. Do not treat missing features
-  as failed visual matches or claim a count-only output is a full prepared artifact.
-- Task progress and progress_scorer_id are optional provenance only. Do not gate
-  coverage/pairing or rank candidates by them. Legacy progress thresholds are ignored.
-- NO privileged inputs for matching/calibration. Whitelist: original public task
-  instruction, starting front/wrist RGB and the exact raw/normalized state8 used by
-  pi05. Compute EEF distances from that raw state, not separate EEF sidecars.
-  Never gate/index/rank by phase, object IDs/poses, held/contact truth, manual verified
-  flags, private task_id, progress or future observations. Only RGB front/wrist views
-  may enter image features. Labels select pools; episode/initial metadata prevent leaks.
-- Prepared matches must declare observation_policy=policy_inputs_only_v1; regenerate
-  old privileged prepared indexes without changing source data.
-- Never initialize pair sampling with recorded actions, detach a flow step, or
-  replace continuous repulsion with a hinge/cutoff. Pull and push share one mask.
-- Do not claim real-model/real-data validation from toy CPU tests.
-- No paid API, replay, long training, killing processes or upload is implicit in
-  inspecting this folder. Check free GPU memory before any GPU allocation.
-- Use the pinned RLinf interface; validate actual checkpoint parity before an update.
-- New run outputs are immutable; use a new output path or explicit --resume.
-- Manual distributed gradient SUM is intentional. Do not add DDP gradient averaging
-  on top. The loss is already divided by GLOBAL branch batch sizes.
+2026-11-03：对齐Stage1到A60、检查代码/文档、push GitHub；A800只做最多2次更新的GPU测试，不正式长训。测试保持global128，用micro1和GPU0 allocator40GiB，启动前确认额外4GiB余量。绝不kill他人进程。后续正式50epoch需明确授权。
 
-Tests: `python -m pytest`; local Gloo test needs IPC/localhost permission.
-Synthetic smoke: `python -m recovery_pair smoke --output outputs/new_smoke --updates 2`.
+## 当前Stage1规则
+
+- `stage1_a60_sft_v1`，VLM和其余参数全部训练；原生compute_loss(train=True)、H10×32均值，包含25个模型padding维度。真实动作7维。FM只随机采一个flow time，不反传采样链。
+- 原始few-shot权重、norm/tokenizer初始化。config/base.yaml共享A60优化器/调度；lr5e-6、β(.9,.95)、eps1e-8、wd1e-10、clip1、warmup100、cosine到5e-7。推理K5 Euler。
+- 默认global128/micro2；显存有限可micro1。每轮全正池打乱无放回，完整50epoch，无来源配额、pair、验证/测试或早停。尾batch按实际窗口数归一化，不丢/复制/跨轮补批。
+- 当前方案1窗口13407/去重动作13767；专家6632、自主3232、VLA推进3543窗口/3903帧。CAP严格准入0。旧16324/14段CAP/冻结配方属历史数据，不混用。
+- VLA推进的segmented记录已物理去掉最后10动作和起点行，不重复裁剪；训练仍要求完整真实H10，不补齐。专家/完整自主成功/准入CAP尾部可重复末动作并参与FM。
+- 先由原selection/provenance建四类库，不重新发明局部标签。仅原始/转换均成功且成功代码轮次对应的CAP片段可申请准入；原分类和失败样本完整保存。
+- CAP查询冻结的VLA正库。严格1cm/5°/state RMS.10/每指5mm/两路图像各.002，最多50数值候选。只使用同公开指令、动作前state8及前视/腕视RGB；不使用进度、私有task/object ID、对象位姿或持物/接触真值。专家只在匹配后加入FM。
+- 成功代码段最早匹配起点放行同段到成功的后缀，不跨程序/交接/标签边界；不能声称后续帧独立匹配。code不能链式为其他code放行。
+- 匹配stride10；准入后训练stride1。新机从完整HF数据目录重建本机绝对路径索引，不直接训练A800索引。使用完整repo，独立子目录缺config/base.yaml会拒绝执行。
+- 库与历史资产不可变；训练写独立run，可以原位只读复用prepared。换数据/global batch/目标/预算用新run，不resume旧冻结/稀疏/batch2验证checkpoint。microbatch可调但不承诺不同硬件逐位复现。
+
+## 代码与检查
+
+新机严格流程用../recovery_conversion/build_scheme1.py的banks→match→prepare→align-training。仅从HF迁移不运行原始export/转换工具。run_positive_fm_pipeline.sh的通用prepare是旧宽松配方；当前只用它的train/export入口。
+
+`openpi_backend.py` 必须保留原生joint prefix/suffix FM。缓存前缀只用于旧采样路径，不替代FM。完整权重加载保留checkpoint_io的dtype重载修复。手动SUM归约已经按global batch缩放，不再叠加DDP。
+
+测试：python -m pytest（本机Gloo需要IPC/回环权限）。本机缺少RLinf/OmegaConf的检查需A800真实环境完成。GPU检查核验原生FM、视觉梯度、checkpoint/连续训练一致性。不能以低batch短测代替生产batch检查或完整50轮。
+
+## 旧Stage2保护
+
+Stage2模块/配置/旧资产与legacy配置身份不改。旧Stage2仍用VLA失败查询、numeric20门槛2cm/10°/RMS.20、图像.002、至少3有效步；历史144负窗口/26父轨迹/205去重动作只适用于旧池。CAP失败保留分类但不进入负查询。
+
+其完整可微Euler、同mask吸引/持续排斥loss、0<lambda_push<1、无hinge/截止门槛、从纯噪声启动及不detach采样链等语义保留。当前新Stage1 checkpoint不能直接接旧Stage2，需要另行适配；不得绕过objective_version或初始化/50epoch校验。操作见README_STAGE2.md和README_STAGE2_MATCHING.md，本轮不启动它们。
+
+密钥/数据/权重/缓存/输出不入Git；不启动付费API或长评测，不改原始数据，不终止他人进程。任务成功只认LIBERO，代码无报错不等于任务成功。

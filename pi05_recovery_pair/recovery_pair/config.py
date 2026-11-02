@@ -22,6 +22,7 @@ class Config:
     flow_steps: int = 3
     integrator: str = "euler"
     learning_rate: float = 1e-5
+    training_recipe: str = 'legacy_frozen_masked_v1'
     gradient_clip: float = 1.0
     lambda_push: float = 0.1
     eta: float = 0.05
@@ -50,6 +51,10 @@ class Config:
         position_m=0.01, rotation_deg=5.0))
 
     def validate(self, *, matching_ready=False):
+        if self.training_recipe not in ('legacy_frozen_masked_v1', 'stage1_a60_sft_v1'):
+            raise ValueError('Unsupported training recipe')
+        if self.training_recipe == 'stage1_a60_sft_v1' and (self.pair_batch or self.eta or self.fm_epochs != 50):
+            raise ValueError('A60-aligned Stage1 requires positive-only FM and 50 complete epochs')
         if self.fm_epochs is not None:
             if type(self.fm_epochs) is not int or self.fm_epochs < 1:
                 raise ValueError('fm_epochs must be a positive integer or null for legacy update sampling')
@@ -108,7 +113,11 @@ class Config:
         return self
 
     def to_dict(self):
-        return asdict(self)
+        data = asdict(self)
+        # Preserve identities of existing Stage2/legacy immutable assets.
+        if self.training_recipe == 'legacy_frozen_masked_v1':
+            data.pop('training_recipe')
+        return data
 
     @classmethod
     def load(cls, path):

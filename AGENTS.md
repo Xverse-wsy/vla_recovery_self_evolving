@@ -1,177 +1,41 @@
-# Agent 接手入口
+# Agent接手入口
 
-先读本文件，再按顺序读 `ENVIRONMENT.md`（部署）、`RUNNING.md`（配置和命令）。
-这三份文件与仓库代码共同构成操作说明，不需要查阅此前对话。
+## 当前Stage1（2026-11-03）
 
-## 独立的恢复片段匹配实验
+先读 [pi05_recovery_pair/README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。这是当前方案1从部署、建库到训练/恢复/导出的唯一操作说明。根目录A60/B80和旧Stage2是独立实验，不能混用其数据量或启动命令。
 
-最新授权新增独立Stage2训练/导出/评测入口并做有界GPU验证；不启动正式长训/完整评测。
-只增加stage2_*模块和脚本，禁止修改Stage1或共享执行代码。此前matching-only限制为历史记录。
-独立Stage2操作文档为pi05_recovery_pair/README_STAGE2.md，入口scripts/run_stage2_pipeline.sh；
-环境配置独立用scripts/stage2.env.example，不覆盖Stage1的env。GPU验证/短评测不代表正式长训完成。
+当前用户授权：复核代码/文档、push GitHub、在A800做有界GPU测试。**不启动正式50轮训练**。最近测试使用GPU0、allocator40GiB、global batch128/microbatch1，最多2次更新。先查nvidia-smi，至少留额外4GiB，不kill他人进程。正式训练命令仅供用户后续显式启动。
 
-新增 `pi05_recovery_pair/` 是独立的四类片段建库、状态匹配、成功片段后缀入池及
-FM/pair训练实现。处理该目录时先读其 `AGENTS.md`、`README.md`、`DATA_CONTRACT.md`、
-`VALIDATION.md`，按该目录的配置和命令运行；本文件以下A60/B80实验定义适用于根目录。
-新增模块可复用本仓库训练环境，但pyproject仅列新增依赖，不能替代完整π0.5环境。
-第一阶段入口：pi05_recovery_pair/README_STAGE1.md。
-2026-11-01最新授权仅新增Stage2匹配统计：独立池可纳入专家40，对VLA负段逐帧匹配；
-读pi05_recovery_pair/README_STAGE2_MATCHING.md。不实施/启动Stage2训练，不修改Stage1规则或旧资产。
-当前纯FM全流程入口：pi05_recovery_pair/RUN_POSITIVE_FM.md，环境模板
-scripts/positive_fm.env.example，阶段脚本scripts/run_positive_fm_pipeline.sh prepare|train|export。
-prepare只建库匹配审计，train才显式训练；原始专家40明确加入FM训练，全部正窗口用于训练；Stage1匹配不接收expert。
-历史稀疏匹配已在A800完成建库、视觉、成功后缀入池及VLA负片段统计；40个负片段中
-21个状态匹配、15个可配对（train12/validation2/test1）。真实pair训练和匹配准确率
-尚未完成。数据、模型、图像缓存、已安装环境和私有凭据不随代码提交。
-2026-11-01独立Stage2匹配已完成：正参考16324个（含专家6632），负起点313个逐一匹配，
-86个可用窗口/18段/18条父轨迹，去重有效负动作141帧。保持原严格阈值；未启动Stage2训练。
-用户随后选定本版Stage2用独立配置pi05_recovery_pair/configs/libero_pi05_stage2_numeric20.json：
-2cm/10°/RMS0.20、图像仍0.002，对应144负窗口/26条父轨迹/去重有效动作205帧。
-只选择已有Stage2配置；禁止为此修改Stage1代码、配置、数据或共享匹配实现。
-最新负匹配仅使用VLA失败片段；CAP失败仍保留在来源库中，具体规则见子目录说明。
-2026-10-31新增纯正向FM版本，使用已纳入正池；中途VLA正片段只保留完整真实窗口，
-自主成功和CAP成功允许末动作重复监督。新配置与prepared独立，强制mode=fm_only。
-用户最新要求全部已准入正窗口用于训练：prepare-positive-fm --all-train，
-不留validation/test、不做验证早停；不重新匹配扩池，保留旧资产及原split溯源。
-A800仅CPU准备和审计1007窗口完成，未启动正式训练；详见子目录入口和验证文档。
-随后已通过物理GPU0的两次真实FM64更新及基座重载/checkpoint恢复验证，峰值分配15.31GiB。
-FM已修正为直接调用上游compute_loss；仅短验证，不代表完整训练或LIBERO成功率已验证。
-进一步GPU0全流程复核已验证连续训练与checkpoint恢复的最终参数/日志精确一致，
-以及1007个窗口的原Parquet对齐；纯FM heldout覆盖全部窗口且不建图，峰值分配12.51GiB。
-新checkpoint含objective_version，不能静默续用目标版本未标记的旧checkpoint。
-完整导出权重加载时，evaluate.py与新训练适配均在RLinf dtype布局完成后重新加载full_weights，
-避免FP32层更新被中间BF16转换舍入；safetensors基座路径不变。评测run含checkpoint_load_policy，
-禁止在旧策略输出目录静默resume，须用新输出目录。
+- 配方 `stage1_a60_sft_v1`：全参数训练、VLM不冻结、原生训练预处理及完整H10×32 FM均值；真实环境动作7维。A60共用config/base.yaml与原生AdamW/调度：lr5e-6、β=(.9,.95)、eps1e-8、weight_decay1e-10、clip1、warmup100、cosine到5e-7。
+- 全局batch128、默认microbatch2，可按共享卡显存改micro1；全部正窗口每轮无放回遍历，完整50epoch。无pair、无负训练、无验证/测试或早停。A60 YAML batch回退值100，16卡示例128；两个入口均可配置，不能误称默认值完全相同。
+- 方案1当前13,407窗口、13,767去重真实动作；专家6632、自主成功3232、VLA推进3543窗口/3903帧。严格CAP准入为0，不伪造恢复监督。B128对应105更新/轮、尾批95、50轮5250更新。
+- 当前资产 `dataset_subsets/pi05_recovery_scheme1_stage1_20261102/stage1_a60_sft_v1/`；旧父目录algorithm/prepared及旧16,324窗口资产保留溯源，不作为当前启动依据。索引含本机绝对路径，新机器必须重建。
+- 原始成功20转换后12成功/8失败全部保留；原始失败20的转换标签另存；两条只有CAP启动失败的VLA前缀，不能伪造CAP动作或完整回放。
+- 已切分的VLA推进段已实际删除末10个动作及起点行，读取时不重复删除；窗口还需完整真实H10、不补齐。专家/完整自主成功/准入CAP成功尾部允许重复末动作，重复参与FM。
+- CAP只匹配原始/转换均成功且成功代码轮次对应的片段。门槛1cm/5°/state RMS.10/每指5mm/前视与腕视各.002，最多50候选。仅模型可见指令、执行前state8和RGB；不用进度、对象位姿、持物/接触真值或未来观测。
+- 最早匹配点可纳入同一实际成功代码段到成功的完整后缀，不跨程序。专家只在匹配后进入FM，不进入匹配库。
 
-最新逐帧版：匹配state_stride=10不变，训练在原已准入正向范围内逐帧滑动。
-16324个窗口（专家6632、VLA中途4727、自主成功3232、CAP1733），全部train；CAP仍为原14个后缀。
-VLA中途不足完整H=10的起点舍弃，不补齐；完整专家/自主成功/CAP成功尾部允许重复末动作监督。
-使用新的prepared/training输出目录，不resume旧不含专家或稀疏checkpoint。此前1007/9692窗口实测属于历史版本。
-专家路径用PAIR_EXPERT_DATASET设置，原始episodes.json选40个episode。
-阶段1现用fm_epochs=50：全部正窗口每轮打乱无放回遍历，完整50轮；取消来源配额。
-16324窗口/FM64时256更新/轮，尾批4，总12800更新/816200次窗口呈现。
-vla_fraction/fm_only_updates/max_episode_reuses仅兼容旧模式。用新prepared/run，不resume旧随机模式。
+## 入口和修改位置
 
-## 实验定义
+- 新机从HF四个完整/segmented数据目录建库：`recovery_conversion/build_scheme1.py --stage banks|match|prepare|align-training`，按主说明分别运行。
+- `run_scheme1_build.sh` 含原始导出/等待转换；仅迁移现有HF数据时不要运行它。转换/切分的历史依赖边界见 [README_SCHEME1_STAGE1.md](recovery_conversion/README_SCHEME1_STAGE1.md)。
+- `pi05_recovery_pair/scripts/run_positive_fm_pipeline.sh train|export` 复用当前prepared；通用prepare使用历史宽松门槛，不用于本次严格方案1。
+- 路径/GPU/输出：shell环境；batch/microbatch：新run的algorithm.json；优化器和调度：config/base.yaml。默认模型/epoch/lr/clip/seed与JSON不一致会拒绝启动。
+- 环境：Linux/Python3.12，完整训练依赖见ENVIRONMENT.md、install_environment.sh train。子目录pyproject不是完整训练环境。固定RLinf c70606f08cdca259b8dec03d4430926b5b8fac9d，需要可追溯Git源码。
+- GPU报告与历史验证：pi05_recovery_pair/VALIDATION.md。短验证不等于正式50轮/H10016卡/任务成功率通过。
+- HF当前配方已发布并核验，提交aced94d551789d25a7a66af329f9bdcf1b232c2c。HF代码补丁供旧clone使用；当前GitHub主线不再覆盖旧补丁。旧stage1_libraries.tar.gz为冻结配方。
 
-- A / `a60`：原始专家40条＋VLA自主成功20条。
-- B / `b80`：相同60条＋转换后的恢复成功20条。
-- A、B必须各自从原始 `RLinf/RLinf-Pi05-LIBERO-SFT` 权重初始化，不能从A初始化B。
-- 两组各完整遍历全部帧50遍。每帧是一个训练样本，不是每条轨迹算一个batch。
-- 每个模型评测标准LIBERO的Spatial、Object、Goal、10：每suite10任务，
-  每任务50个预设初始状态，共2,000条。评测原始模型、A、B，生成对照表。
-- 评测不启用WCM或CAP-X。恢复数据的VLA前缀与CAP-X后缀已统一为7维OSC。
-- 本仓库直接读取现有Parquet，不重新合并数据，不额外翻转图片，不重算归一化。
-- 新增的失败恢复数据集是独立数据；当前A/B配方不会自动读取它。
+## Stage2兼容边界
 
-## 部署与最短执行路径
+Stage2代码、配置与既有数据保持原有行为，旧入口不能直接接受此版全参数Stage1 checkpoint。未来接入需单独适配和授权；不能为接收新权重而绕过目标版本校验。
+保留完整权重加载的dtype重载修复，防止FP32层中间BF16舍入。改变共享执行代码须保留legacy配置身份与数值行为。手动梯度SUM不能再叠加DDP平均。
 
-1. 按 `ENVIRONMENT.md` 准备Linux x86_64、Python3.12、NVIDIA驱动和系统库。
-2. 准备固定提交的RLinf/OpenPI源码、原始权重、三个完整数据目录、tokenizer、
-   LIBERO的assets/bddl_files/init_files。它们不包含在本代码仓库中。
-3. 创建两个独立环境，分别运行 `install_environment.sh train` / `eval`。
-4. 复制 `experiment.env.example` 为 `experiment.env`，填写本机绝对路径和GPU。
-5. 配置和检查资源，再预览计划：
+## 根目录A60/B80（独立历史对照）
 
-```bash
-set -a
-source experiment.env
-set +a
-export PACKAGE="$PWD"
-"$PI05_EVAL_PYTHON" configure_resources.py --resources "$PI05_ROOT/libero-resources"
-"$PI05_TRAIN_PYTHON" verify_environment.py --mode train --resources
-"$PI05_EVAL_PYTHON" verify_environment.py --mode eval --resources
-bash run_experiment.sh plan
-```
+A60=专家40+自主20，B80=同60+旧恢复20；各从原始few-shot初始化、完整50轮。原位读取Parquet，不合并数据、不改原norm。原三模型完整评测为Spatial/Object/Goal/LIBERO-10各10任务×50初态，每模型2000条。训练/评测总入口见RUNNING.md；环境见ENVIRONMENT.md；根目录run_experiment.sh不用于当前片段Stage1。
+相关代码：config/base.yaml、config/a60.yaml、config/b80.yaml、train.py、direct_data.py、training_runtime.py、evaluate.py/evaluate_parallel.py。配置和launcher batch需查看实际生效值。
 
-6. 用户允许使用选定GPU后，先执行短验证：
+## 通用约束
 
-```bash
-bash run_experiment.sh all --smoke
-```
-
-7. 仅在用户授权正式实验后，执行 `bash run_experiment.sh all`。
-   也可分开 `train` / `eval`；中断续跑用 `all --resume`。
-
-不要在仅要求部署或检查时启动正式50-epoch训练/6,000条评测。
-不要停止别人的进程。实际启动前检查 `nvidia-smi`，显存检查不等于GPU资源预留。
-
-## 参数与代码地图
-
-| 修改内容 | 位置 |
-| --- | --- |
-| 数据/模型/环境路径、卡池、batch、输出目录 | `experiment.env` |
-| 共享默认路径 | `config/paths.yaml` |
-| epoch、学习率、保存间隔、保留数量、模型设置 | `config/base.yaml` |
-| A/B来源及数量 | `config/a60.yaml`、`config/b80.yaml` |
-| 总流程、最终模型交接、计划校验、阶段续跑 | `experiment.py`、`run_experiment.sh` |
-| 训练入口、CLI覆盖、原始初始化/续跑审计 | `train.py`、`run_train.sh` |
-| 精确epoch、采样、梯度/优化器/随机状态恢复 | `epoch_plan.py`、`training_runtime.py` |
-| 原位读取、图像解码、动作窗口、OpenPI变换 | `direct_data.py`、`direct_loader.py` |
-| 仿真/模型推理与评测参数 | `evaluate.py`、`run_eval.sh` |
-| 多卡/多机分片、锁、完整性检查与汇总 | `evaluate_parallel.py`、`eval_jobs.py` |
-| 三模型比较 | `compare_results.py` |
-
-总batch＝全局训练rank数×每卡microbatch×梯度累积。16×2×4＝128。
-若设置 `PI05_GLOBAL_BATCH`，清空 `PI05_ACCUMULATION`，或确保二者一致。
-评测每卡一个模型副本和一个环境，GPU数控制并发，不使用训练batch。
-
-当前总入口刻意固定A60/B80、50epoch及三模型完整评测。
-如果增加数据源/改变实验规模，必须同时检查 `settings.py`、`train.py`、
-`experiment.py` 的实验名/数量/epoch断言、短验证采样点及比较脚本；仅修改YAML
-不能保证支持新实验。不要为通过断言而伪造数量或成功标签。
-
-## 输出和续跑
-
-`PI05_EXPERIMENT_OUTPUT` 下：
-
-```text
-experiment.json                 # 固定本次计划；改变参数请用新的输出目录
-pipeline.log                    # 总日志
-status.json                     # 总流程状态；train-only完成不等于评测也完成
-training/{a60,b80}/
-  status.json                   # 训练完成状态和最终checkpoint路径
-  resolved_config.yaml
-  dataset_manifest.json
-  initial_weights.json          # 更新前权重审计；续跑不覆盖
-  resumed_weights.json          # 若发生续跑
-  direct_pi05/checkpoints/global_step_N/
-    COMPLETE.json               # 完整保存标记
-    actor/                      # 评测必须传actor目录
-evaluation/{fewshot,a60,b80}/
-  workers/worker_NNN/            # 分卡日志、视频、结果
-  episodes/                     # 合并后的轨迹结果
-  summary.json
-comparison/comparison.md
-```
-
-短验证使用同一输出根下的 `smoke/`。若短验证训练中断，换新输出目录；正式训练
-可续跑最近完整checkpoint。保持数据、batch、rank数、配置和输出目录不变。
-评测续跑保持分片数不变，只跳过通过设置/权重校验的已完成轨迹。
-
-## 多机边界和验证范围
-
-- 单机多卡训练及评测已在A800双卡验证；A/B短训、checkpoint恢复和三模型仿真
-  评测已执行。总入口控制流、共享路径、计划和中断恢复也有CPU验证。
-- 依赖清单已解析、现有两个环境已核对；未在全新机器完整重装验证。
-- 实际16张H100、多节点Ray/NCCL、共享文件锁仍须在目标机器验证。
-- 多机训练要求已有Ray集群及各节点一致的资源路径；总脚本不会创建集群。
-- 总入口自动评测使用主节点的本机卡池。跨节点评测须按 `ENVIRONMENT.md`
-  分别启动每节点分片入口，共享输出；不能每节点各跑一遍完整评测。
-- 本仓库不包含CAP-X转换工具链或其原始仿真日志。新恢复数据转换不能仅凭本仓库
-  重建；训练使用已经转换并验证的数据。
-
-## 常见失败的处理
-
-- 路径/缺文件：先核对 `experiment.env`、原始40条的 `episodes.json`、完整`meta/`、
-  tokenizer和LIBERO资源；不要删除稀疏episode编号或擅自重排动作。
-- OpenPI/Transformers导入失败：使用训练安装脚本，确保最后重新安装fork版
-  `rlinf-transformer-openpi`；不要将两个requirements混装。
-- 显存不足：减少每卡microbatch、增加梯度累积；保留系统/CUDA余量，不能kill他人。
-- EGL失败：检查驱动、EGL系统库、选定GPU及资源配置；`--cuda`通过不代表渲染通过。
-- 旧输出拒绝新计划：用新输出目录；不要手改 `experiment.json` 绕过检查。
-- checkpoint不完整：只使用含 `COMPLETE.json` 的checkpoint；不要手建标记文件。
-- 性能指标：短验证只证明流程可运行，不证明完整准确率或跨GPU逐动作一致。
-
-任何修改后至少做Python/Bash语法与 `git diff --check`，再做与修改相关的验证。
-报告实际通过的验证，不把模拟后端验证写成真实GPU长训结果。
+密钥从私有环境/缓存读取，不写跟踪文件；数据、权重、环境和大输出不入Git。只检查/部署/上传时不隐式启动长训、长评测或付费API。输出只写新目录，不覆盖原数据或历史结果。GPU空闲不等于资源预留，检查后再分配，不停止他人进程。
+修改后做Python/Bash语法、git diff --check及相关测试。报告真实覆盖范围；不把模拟CPU检查写成真实GPU训练，不把采样50轮写成已训练50轮。单机torchrun standalone支持单卡/多卡，未验证H10016卡或跨节点。

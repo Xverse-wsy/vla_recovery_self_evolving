@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import random
 import time
+from dataclasses import replace
 
 import numpy as np
 import torch
@@ -39,15 +40,29 @@ def probe_native_fm(backend, loader, record):
     payload = record.payload()
     target = torch.as_tensor(payload['actions'][None], device=device)
     mask = torch.as_tensor(payload['valid_mask'][None], device=device)
+    if backend.full_model_sft:
+        from .a60_recipe import full_sft_mask
+        from .config import Config
+        mask=full_sft_mask(mask,Config(horizon=backend.horizon,action_dim=backend.action_dim))
     generator = torch.Generator(device=device).manual_seed(12345)
     noise = torch.randn(target.shape, device=device, generator=generator)
     t = torch.tensor([.65], device=device)
     observation = loader([record])
-    with torch.no_grad():
-        native = backend.policy.compute_loss(observation, target, train=False, noise=noise, time=t)
+    # Training preprocessing is stochastic. Compare both calls with identical
+    # augmentation RNG without perturbing the actual training run's RNG stream.
+    devices=[device.index] if device.type=='cuda' else []
+    with torch.random.fork_rng(devices=devices), torch.no_grad():
+        torch.random.default_generator.manual_seed(2468)
+        if devices:
+            torch.cuda.manual_seed(2468)
+        native = backend.policy.compute_loss(observation, target, train=backend.fm_augmentation, noise=noise, time=t)
         old_prediction, velocity_target = fm_prediction(backend, observation, target, noise=noise, time=t)
         cached_difference = float(((old_prediction-velocity_target).square()[mask]-native[mask]).abs().max())
-    element = fm_loss_elements(backend, observation, target, noise=noise, time=t)
+    with torch.random.fork_rng(devices=devices):
+        torch.random.default_generator.manual_seed(2468)
+        if devices:
+            torch.cuda.manual_seed(2468)
+        element = fm_loss_elements(backend, observation, target, noise=noise, time=t)
     if not torch.allclose(element[mask], native[mask], atol=2e-5, rtol=2e-5):
         raise RuntimeError('Positive FM differs from native compute_loss')
     loss = element[mask].mean()
@@ -59,6 +74,8 @@ def probe_native_fm(backend, loader, record):
         raise RuntimeError('Native FM probe has invalid or zero trainable gradients')
     if any(p.grad is not None for p in backend.parameters() if not p.requires_grad):
         raise RuntimeError('Frozen VLM unexpectedly received gradients')
+    if backend.full_model_sft and not any(p.grad is not None and p.grad.abs().sum()>0 for p in backend.policy.img.parameters()):
+        raise RuntimeError('Full-model Stage1 did not propagate gradients into the vision encoder')
     result = dict(sample_id=record.sample_id, category=record.bank_label.get('source_category'),
         real_steps=record.source['fm_real_steps'], repeated_steps=record.source['fm_repeated_steps'],
         loss=float(loss.detach()), native_max_abs_error=float((element[mask]-native[mask]).abs().max().detach()),
@@ -68,8 +85,14 @@ def probe_native_fm(backend, loader, record):
     return result
 
 
-def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda:0', memory_gib=20.):
+def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda:0', memory_gib=20.,
+             probe_batch_size=None):
     config = Config.load(config_path)
+    production_config = config.to_dict()
+    if probe_batch_size is not None:
+        if type(probe_batch_size) is not int or probe_batch_size < 1:
+            raise ValueError('Probe batch size must be positive')
+        config = replace(config, fm_batch=probe_batch_size, fm_micro_batch=1).validate()
     records, pairs, digest = audit_prepared(prepared, config)
     check_training_mode(prepared, 'fm_only')
     info = json.loads((Path(prepared) / 'report.json').read_text())
@@ -78,8 +101,10 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
     if not device.startswith('cuda') or not torch.cuda.is_available():
         raise ValueError('This validation explicitly requires a real CUDA model')
     from .batches import training_sampler
-    if training_sampler(records,pairs,config,mode='fm_only').nominal_updates < 2:
-        raise ValueError('Validation needs room for two updates')
+    first_updates=1
+    final_updates=first_updates+1
+    if training_sampler(records,pairs,config,mode='fm_only').nominal_updates < final_updates:
+        raise ValueError('Validation needs room for training and checkpoint-resume updates')
     source_audit = audit_source_alignment(records, norm_stats)
     out = Path(output).resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -104,7 +129,9 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         frozen_report = backend.freeze_report()
         status.write_text(json.dumps({'state': 'probing_native_fm'}))
         probes = []
-        categories = ['vla_progress_candidate', 'autonomous_episode_success', 'capx_completed']
+        categories = ['vla_progress_candidate', 'autonomous_episode_success']
+        if any(r.controller == 'code' for r in records):
+            categories.append('capx_completed')
         if any(r.controller == 'expert' for r in records):
             categories.append('original_expert_demonstration')
         for category in categories:
@@ -116,9 +143,12 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
             probe = probe_native_fm(backend, loader, candidates[0])
             probes.append(probe)
             print(json.dumps({'native_fm_probe': probe}), flush=True)
+        torch.manual_seed(config.seed)
+        np.random.seed(config.seed)
+        random.seed(config.seed)
         status.write_text(json.dumps({'state': 'first_update'}))
         first = train(backend, loader, prepared, config, out / 'run', base=base, mode='fm_only',
-                      max_updates=1, save_every=1, validate_every=1, keep_last=2)
+                      max_updates=first_updates, save_every=1, validate_every=1, keep_last=2)
         first_hash = parameter_hash(backend, True)
         if first_hash == base_trainable or parameter_hash(backend, False) != frozen_before:
             raise RuntimeError('First update did not change expert or modified frozen weights')
@@ -132,7 +162,7 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         loader = ObservationLoader(backend)
         status.write_text(json.dumps({'state': 'resuming_second_update'}))
         second = train(backend, loader, prepared, config, out / 'run', base=base, mode='fm_only',
-            resume=out / 'run/update_000001.pt', max_updates=2, save_every=1, validate_every=1, keep_last=2)
+            resume=out / f'run/update_{first_updates:06d}.pt', max_updates=final_updates, save_every=1, validate_every=1, keep_last=2)
         final_hash = parameter_hash(backend, True)
         if final_hash in (base_trainable, first_hash) or parameter_hash(backend, False) != frozen_before:
             raise RuntimeError('Resume did not update expert or modified frozen weights')
@@ -143,14 +173,17 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         torch.cuda.empty_cache()
         backend = load_backend(checkpoint, norm_stats, config, device)
         loader = ObservationLoader(backend)
+        torch.manual_seed(config.seed)
+        np.random.seed(config.seed)
+        random.seed(config.seed)
         continuous = train(backend, loader, prepared, config, out / 'uninterrupted', base=base,
-            mode='fm_only', max_updates=2, save_every=1, validate_every=1, keep_last=2)
+            mode='fm_only', max_updates=final_updates, save_every=1, validate_every=1, keep_last=2)
         if parameter_hash(backend, True) != final_hash:
             raise RuntimeError('Resumed and uninterrupted two-update parameters differ')
         if parameter_hash(backend, False) != frozen_after_resume:
             raise RuntimeError('Uninterrupted run changed frozen parameters')
         metrics = [json.loads(x) for x in (out / 'run/metrics.jsonl').read_text().splitlines()]
-        if ([m['update'] for m in metrics] != [1, 2] or second['updates'] != 2
+        if ([m['update'] for m in metrics] != list(range(1,final_updates+1)) or second['updates'] != final_updates
                 or any(not 0 < m['fm_count'] <= config.fm_batch or m['pair_count'] or m['pair'] or m['eta']
                        or not np.isfinite(m['loss']) or not m['gradient_norm_before_clip'] > 0 for m in metrics)):
             raise RuntimeError('Invalid real FM update metrics')
@@ -161,10 +194,12 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
         audit_prepared(prepared, config)
         if base_identity(checkpoint, norm_stats) != base:
             raise RuntimeError('Original base checkpoint changed')
-        result = dict(state='complete', real_model=True, optimizer_updates=4,
+        result = dict(state='complete', real_model=True, optimizer_updates=2*final_updates,
+            full_model_sft=backend.full_model_sft,
             cuda_visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'), device=device,
             prepared_sha256=digest, prepared=str(Path(prepared).resolve()),
-            base=base, config=config.to_dict(), native_fm_probes=probes, metrics=metrics,
+            base=base, config=config.to_dict(), production_config=production_config,
+            probe_batch_override=probe_batch_size, native_fm_probes=probes, metrics=metrics,
             sampler_audit=sampler, freeze_report=frozen_report,
             frozen_weights_unchanged=True, trainable_weights_changed=True,
             fresh_base_reload_verified=True, checkpoint_resume_verified=True,
@@ -176,9 +211,9 @@ def validate(prepared, config_path, checkpoint, norm_stats, output, device='cuda
             cuda_cap_gib=memory_gib, cuda_peak_allocated_gib=torch.cuda.max_memory_allocated()/1024**3,
             cuda_peak_reserved_gib=torch.cuda.max_memory_reserved()/1024**3,
             elapsed_seconds=time.monotonic()-started,
-            scope='Two resumed and two uninterrupted FM64 updates with exact final-weight/metric equivalence; no long training, LIBERO evaluation or API.')
+            scope=f'{final_updates} resumed and {final_updates} uninterrupted FM updates with exact final-weight/metric equivalence; no long training, LIBERO evaluation or API.')
         (out / 'report.json').write_text(json.dumps(result, indent=2))
-        status.write_text(json.dumps({'state': 'complete', 'optimizer_updates': 4}))
+        status.write_text(json.dumps({'state': 'complete', 'optimizer_updates': 2*final_updates}))
         return result
     except Exception as exc:
         status.write_text(json.dumps({'state': 'failed', 'error': str(exc)}))
@@ -191,9 +226,11 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--max-cuda-memory-gb', type=float, default=20.)
+    parser.add_argument('--probe-batch-size', type=int,
+                        help='Bounded verification only; does not modify production assets or batch')
     args = parser.parse_args()
     print(json.dumps(validate(args.prepared, args.config, args.checkpoint, args.norm_stats,
-        args.output, args.device, args.max_cuda_memory_gb), indent=2))
+        args.output, args.device, args.max_cuda_memory_gb, args.probe_batch_size), indent=2))
 
 
 if __name__ == '__main__':

@@ -74,14 +74,27 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
         out.mkdir(parents=True,exist_ok=bool(resume))
     if world>1:
         torch.distributed.barrier()
-    optimizer = torch.optim.AdamW([p for p in backend.parameters() if p.requires_grad],
-        lr=config.learning_rate, weight_decay=0.0)
+    scheduler, optimizer_recipe = None, None
+    native_sft = config.training_recipe == 'stage1_a60_sft_v1'
+    if native_sft:
+        if mode != 'fm_only':
+            raise ValueError('A60-aligned Stage1 requires fm_only')
+        if hasattr(backend,'full_model_sft') and not backend.full_model_sft:
+            raise ValueError('Stage1 backend must enable full-model SFT')
+        from .a60_recipe import build_optimizer_and_scheduler
+        optimizer,scheduler,optimizer_recipe = build_optimizer_and_scheduler(backend,config,sampler.nominal_updates)
+    else:
+        optimizer = torch.optim.AdamW([p for p in backend.parameters() if p.requires_grad],
+            lr=config.learning_rate, weight_decay=0.0)
     config_identity = config.to_dict()
     # Changing microbatch/world size is valid on resume; logical batches stay fixed.
     for k in ('fm_micro_batch','pair_micro_batch'):
         config_identity.pop(k)
+    from .a60_recipe import OBJECTIVE as A60_OBJECTIVE
     identity = dict(base=base,prepared_sha256=digest,config=config_identity,mode=mode,
-                    objective_version=OBJECTIVE_VERSION)
+                    objective_version=A60_OBJECTIVE if native_sft else OBJECTIVE_VERSION)
+    if native_sft:
+        identity['optimizer_recipe'] = optimizer_recipe
     start, best, bad = 0, float('inf'), 0
     if resume:
         state = torch.load(resume,map_location='cpu',weights_only=False)
@@ -92,6 +105,10 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
             for name, value in state['trainable'].items():
                 named[name].copy_(value.to(named[name]))
         optimizer.load_state_dict(state['optimizer'])
+        if scheduler is not None:
+            if 'lr_scheduler' not in state:
+                raise ValueError('A60-aligned resume requires saved LR scheduler state')
+            scheduler.load_state_dict(state['lr_scheduler'])
         sampler.load_state_dict(state['sampler'])
         start,best,bad = state['update'], state['best_validation'],state['bad_validations']
         if sampler.updates != start:
@@ -116,7 +133,9 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
             val_sampler = EpisodeEventSampler(records,pairs,val_config,split='validation')
             validation_plan = val_sampler.draw()
     # Automatically enforce real native-vs-differentiable parity before updating.
-    report = check_sampler(backend,loader,next(r for r in records if r.split=='train' and r.training_quality=='positive'))
+    report = (dict(required=False, reason='native_A60_FM_uses_one_random_flow_time_not_a_sampling_chain',
+                   H=config.horizon, K=config.flow_steps) if native_sft else
+        check_sampler(backend,loader,next(r for r in records if r.split=='train' and r.training_quality=='positive')))
     if rank==0:
         (out/'sampler_audit.json').write_text(json.dumps(report,indent=2))
         (out/'run.json').write_text(json.dumps(dict(identity=identity,world_size=world,
@@ -136,6 +155,8 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
             best_validation=best,bad_validations=bad,torch_rng=torch.get_rng_state(),
             numpy_rng=np.random.get_state(),python_rng=random.getstate(),
             cuda_rng=torch.cuda.get_rng_state() if torch.cuda.is_available() else None)
+        if scheduler is not None:
+            state['lr_scheduler'] = scheduler.state_dict()
         dest=out/f'update_{update:06d}.pt'
         tmp=dest.with_suffix('.tmp')
         torch.save(state,tmp)
@@ -149,8 +170,13 @@ def train(backend, loader, prepared, config, output, *, base=None, resume=None,
             stop_reason='requested_update_limit'
             break
         plan=sampler.draw()
+        learning_rate_used = optimizer.param_groups[0]['lr']
         metrics=optimizer_update(backend,optimizer,loader,records,plan,config,
             update_index=update,total_updates=sampler.nominal_updates,mode=mode)
+        if scheduler is not None:
+            scheduler.step()
+            metrics.update(learning_rate_used=learning_rate_used,
+                           learning_rate=optimizer.param_groups[0]['lr'])
         update+=1
         metrics.update(update=update,episode_visits=plan['episode_visits'],
                        fm_count=len(plan['fm_ids']),pair_count=len(plan['pairs']))

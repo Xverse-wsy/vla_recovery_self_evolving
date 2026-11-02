@@ -1,23 +1,12 @@
-# π0.5 direct-source A/B experiment
+# π0.5训练与评测适配
 
-**接手本项目的 agent：先读 [AGENTS.md](AGENTS.md)。** 它列出实验定义、部署顺序、
-代码地图、参数位置、输出/续跑约定和已验证范围；不需要先前对话。
+Agent先读 [AGENTS.md](AGENTS.md)。**当前片段Stage1的唯一操作入口：[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)**。它写明阶段目标、依赖、数据目录、严格建库、FM训练、GPU限制、短测试、恢复和导出；不需要先前对话。
 
-新增的局部片段匹配、成功恢复后缀入池及 FM/pair 实验位于独立目录
-[pi05_recovery_pair/](pi05_recovery_pair/README.md)。其接手入口是
-[pi05_recovery_pair/AGENTS.md](pi05_recovery_pair/AGENTS.md)，当前规则和实测结果见
-[VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。根目录仍是下面的A60/B80实验入口；
-新目录有自己的配置、数据要求和命令，不会自动接入根目录的A60/B80流程。
-当前阶段1配置fm_epochs=50：全库每轮打乱无放回遍历，完整50轮；不固定来源配额。
-16324窗口、全局batch64时每轮256更新（尾批4）、合计12800更新。详见子目录README_STAGE1.md。
+当前方案1使用原始专家40、自主成功20，以及新恢复成功/失败父轨迹中的VLA推进片段；严格CAP匹配当前准入0。共13,407个逐帧窗口、13,767去重动作。VLM不冻结，使用原生H10×32 FM及A60优化器/调度；global128时完整50轮共5,250更新。VLA推进片段先去掉末10步，再仅保留完整真实窗口，不补齐。
 
-**本次只运行第一阶段正向FM**，请先读
-[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。完整操作细节见
-[RUN_POSITIVE_FM.md](pi05_recovery_pair/RUN_POSITIVE_FM.md)：
-`cd pi05_recovery_pair`，配置`scripts/positive_fm.env.example`，再分阶段执行
-`scripts/run_positive_fm_pipeline.sh prepare|train|export`。
-它使用原始专家40、VLA正片段和匹配成功的CAP后缀，全部用于训练；专家不进入匹配库。
-当前16324个逐帧窗口，VLA中途片段不补齐；这与下方A60/B80配方分别配置。
+新机按 `recovery_conversion/build_scheme1.py --stage banks|match|prepare|align-training` 分阶段从已有HF数据重建，再用 `pi05_recovery_pair/scripts/run_positive_fm_pipeline.sh train|export`。来源工具边界见 [README_SCHEME1_STAGE1.md](recovery_conversion/README_SCHEME1_STAGE1.md)，实测见 [VALIDATION.md](pi05_recovery_pair/VALIDATION.md)。旧16,324窗口、14段CAP和冻结配方均为历史版本。
+
+本轮仅做有界测试和代码推送，不启动正式50轮。下文是独立A60/B80对照实验，不能用其总入口启动当前Stage1。Stage2也有独立文档，旧入口尚未适配此版全参数Stage1 checkpoint。
 
 This directory contains the external training/evaluation adapter. It reads the
 existing three selected datasets directly; it does not create merged datasets
