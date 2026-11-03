@@ -8,6 +8,8 @@
 
 接手agent按本文顺序完成：环境和下载 → 本机重建四步 → 检查建库结果 → 最多2次更新的短测试 → 检查停止状态与checkpoint。只要求部署/检查时，到短测试验收就停止；“保持50epoch”指正式预算，不代表现在启动正式训练。正式50轮另见第3节的显式续训命令。
 
+**目标机已完成A60、B80和旧Stage1训练时，先读本文末尾“已有训练机的增量迁移与验收”**，复用已验证的环境/权重/数据，按缺项准备新版数据，不从第1节盲目重装。验收看本次运行的实际文件和 `run.json`，不以旧实验跑过代替本次检查。
+
 当前资产：`dataset_subsets/pi05_recovery_scheme1_stage1_20261102/stage1_a60_sft_v1/`。
 HF：[wsy-w1k/rollout/pi05_recovery_scheme1_20261102](https://huggingface.co/datasets/wsy-w1k/rollout/tree/main/pi05_recovery_scheme1_20261102)。
 
@@ -336,10 +338,119 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 
 输出 `exported/full_weights.pt`，并保留norm/tokenizer与config。约7GB权重文件，训练checkpoint及优化器占用更多磁盘，启动前预留至少约100GB。评测加载完整权重必须使用本版适配层的dtype重载修复。LIBERO评测另行显式运行；本阶段不接旧Stage2入口，后者仍针对旧冻结配方。
 
+## 已有训练机的增量迁移与验收
+
+目标机已经完成A60/B80/旧Stage1时，驱动和原SFT链路已有基础，只迁移新版代码与缺少的数据。先记录旧实验的代码提交、环境路径、实际模型/norm/tokenizer路径和数据目录；不改旧checkpoint、不覆盖旧banks/prepared，不在旧实验目录 `git reset --hard` 或直接重装共享环境。
+
+1. 新版代码使用独立clone或工作目录。令 `PACKAGE` 指向它，`PI05_TRAIN_PYTHON` 指向原训练环境，`PI05_ROOT` 指向本次工作根目录，`OPENPI_DATA_HOME` 指向已有tokenizer缓存。新工作根可用软链接复用既有RLinf、原始few-shot模型、专家40和自主20；目录映射仍按第1节。RLinf需保持固定提交。
+2. 环境检查通过就不重装。使用新版模块时，launcher会设置 `PYTHONPATH`，建库使用 `--pair-code "$PACKAGE/pi05_recovery_pair"`；检查实际导入路径，避免落到旧版editable安装。若确有依赖差异，先查明，优先为本次创建独立环境，不影响旧实验。
+3. 旧B80的 `recovery20/` 和旧 `pi05_recovery_segmented/` 不替代本轮方案1的四个完整/segmented目录。缺少这四个目录时，第1节下载代码中的 `allow_patterns` 只保留 `groups` 四项，已存在的专家40/自主20直接复用；不要重新执行创建已有软链接的代码。
+4. 若本机当前方案1库已存在且验收通过，可直接复用；若只有旧Stage1库，按第2节重新建库。相同输出目录已存在时，换新工作根并链接原始数据，不能删除历史结果或覆盖已完成资产。
+5. 从原始few-shot权重初始化本轮，不能用A60/B80/旧Stage1训练权重冒充基座。正式预算仍为总计50epoch。默认仅做2步短测试，到验收停止；旧Stage1 checkpoint不能拿来续训本配方。
+
+环境复核只检查训练环境，不需要补装评测环境或旧B80资源：
+
+```bash
+"$PI05_TRAIN_PYTHON" -m pip check
+"$PI05_TRAIN_PYTHON" "$PACKAGE/verify_environment.py" --mode train --root "$PI05_ROOT"
+cd "$PACKAGE/pi05_recovery_pair"
+"$PI05_TRAIN_PYTHON" -c 'import recovery_pair,rlinf; print(recovery_pair.__file__); print(rlinf.__file__)'
+```
+
+这里不传 `--resources`：该环境检查的旧资源分支会额外要求历史B80数据，不能拿它判断新版方案1资源是否完整。新版数据使用下面的独立审计。上述命令不启动模型或GPU训练。
+
+| 验收项 | 本轮应满足 | 查看依据 |
+|---|---|---|
+| 代码与模块 | 新版完整适配仓库；RLinf固定 `c70606f...`；实际导入路径正确 | Git提交/差异、包路径、环境检查 |
+| 数据身份 | 原选专家40、自主成功20、新方案1成功/失败各20；选择ID和provenance一致 | 固定HF revision、原选择文件和元文件哈希；不能只看目录名和条数 |
+| 数据完整性 | 所需meta、selection、provenance、映射和Parquet均在；复制时无漏文件 | HF下载记录，或原机/目标机完整文件清单及SHA256比较 |
+| 实际入池来源 | 专家6632、自主3232、VLA推进3543；合计13407窗口 | 本机prepared报告的 `windows_by_category` 及训练池逐条计数 |
+| 任务分布 | 按来源分别统计suite/task的父轨迹数、窗口数和去重帧数，与原选集对照 | 原selection/provenance和训练池；任务覆盖均衡不等于按窗口的训练权重均衡 |
+| CAP准入 | 本轮参考结果为0；不把旧14段或全部恢复20直接加入 | `matching/admission/report.json`、prepared报告 |
+| 前缀边界 | 已物理去末10动作/观测，不再裁第二次；不足真实H10不纳入，不补齐 | segmented provenance、`discarded_vla_progress_tails.jsonl`、窗口源范围与mask |
+| 密集起点 | 保留范围内逐帧输入，不是每10帧训练；不跨交接/标签/代码轮次 | `dense_scopes.jsonl`、`fm_start_stride=1`；匹配stride10保持不变 |
+| 动作与图像 | 动作7维/state8、H10、原norm和图像方向；不额外delta/翻转/重采样 | 深度source audit；人工抽看各来源的起点前视/腕视与动作 |
+| 初始化资产 | 原始few-shot权重与原norm/tokenizer；实际权重文件和哈希一致 | 下面的资产检查与 `run.json.identity.base` |
+| 可训练范围 | 3,353,433,872个可训练参数，冻结参数0，包含视觉/VLM/action expert | `run.json.freeze_report`；匹配编码器冻结不代表训练冻结 |
+| 目标函数 | `fm_only`、原生H10×32均值，pair/eta为0，不加负训练 | `identity.mode/objective_version/config`、metrics的pair_count |
+| 优化器/调度 | AdamW 5e-6、β(.9,.95)、eps1e-8、wd1e-10、clip1、warmup100、cosine到5e-7 | `run.json.identity.optimizer_recipe`，不只检查配置模板 |
+| 逻辑batch和预算 | 全局128，不再乘卡数；50epoch、105更新/轮、总5250、尾批95 | 本次run的 `training_budget` 和metrics；修改全局batch要重新计算 |
+| 抽样与划分 | 全部train，每轮打乱无放回；无来源配额、heldout或早停 | `source_quota_applied=false`、`validation_enabled=false`、采样报告 |
+| 多卡与硬件 | 在计划实际使用的单机卡数下完成短测试；NCCL无挂起、显存有余量 | `world_size`、rank日志、每卡nvidia-smi；两台8卡不等于本入口的单机16卡 |
+| 保存/恢复/结束 | checkpoint可重载且有optimizer/scheduler/RNG/游标；最终50轮而非2步 | 短测验收及第4节完成标准；正式续训须取消 `PAIR_MAX_UPDATES` |
+
+数据身份不能仅凭13407这个总数判断。固定HF提交应为 `aced94d551789d25a7a66af329f9bdcf1b232c2c`。若用本机拷贝而非HF下载，需比较原始文件内容；下面的元文件SHA用于确认选集身份，不替代所有Parquet的完整性校验。A800验收基线：
+
+| 相对 `dataset_subsets/` 的原文件 | SHA256 |
+|---|---|
+| `rlinf_pi05_libero_fewshot40_20261021/episodes.json` | `004332588ef11e57a3a29ec691ea86e27ca713e96bca9e08d07575832fdb75ca` |
+| `pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot/meta/provenance.jsonl` | `3d9969fbb6035f63cf1eef500aa08d74aefd98871b714d250cac7e6a4b20575b` |
+| `pi05_recovery_scheme1_stage1_20261102/recovery_success20_segmented/meta/provenance.jsonl` | `2b6cf2bc3a94e198787e021bc86cfa7556fd5429999766ffa0ba73a5d32732d2` |
+| `pi05_recovery_scheme1_stage1_20261102/recovery_failure20_segmented/meta/provenance.jsonl` | `032ddcae998052a1959d484503fee18f33e9876b581b1677cf9f5febfae641fd` |
+
+本机重建索引会改变绝对路径和部分sample ID，因此不要求新prepared的文件SHA与A800相同；原始数据文件和资产内容才应相同。不要改写原始provenance中的历史来源路径；它们是身份记录，不是模型输入。
+
+按新机路径设好第3节的变量后，可只读检查真实模型选择、norm和tokenizer。权重哈希会顺序读取模型文件，耗时取决于存储速度；不加载GPU，不更新模型：
+
+```bash
+cd "$PACKAGE/pi05_recovery_pair"
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import hashlib, os
+from pathlib import Path
+from recovery_pair.trainer import base_identity
+b = base_identity(os.environ['PAIR_CHECKPOINT'], os.environ['PAIR_NORM_STATS'])
+assert Path(b['weight_file']).name == 'model.safetensors', 'Original model folder contains an overriding full_weights.pt'
+assert b['weights_sha256'] == '4616e4c1966a5fb063b442ea5d69857f45e873222d839b794634d87d252ab9e7'
+assert b['norm_sha256'] == 'dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1'
+cache = Path(os.environ.get('OPENPI_DATA_HOME', str(Path.home() / '.cache/openpi'))).expanduser()
+t = cache / 'big_vision/paligemma_tokenizer.model'
+assert hashlib.sha256(t.read_bytes()).hexdigest() == '8986bb4f423f07f8c7f70d0dbe3526fb2316056c17bae71b1ea975e77a168fc6'
+print('PASS: original few-shot weights, norm and tokenizer match the A800 reference')
+PY
+
+"$PI05_TRAIN_PYTHON" -m recovery_pair audit \
+  --prepared "$PAIR_RUN/prepared" --source-norm-stats "$PAIR_NORM_STATS" \
+  > "$PAIR_RUN/migration_source_audit.json"
+```
+
+深度audit检查动作来源、归一化、起点状态、窗口范围和padding规则；不会证明每个正动作都有任务推进效果。仍需人工抽查图像方向/任务指令，训练效果需单独评测。当前初始化查找会优先考虑同目录的 `full_weights.pt` 或 `model/full_weights.pt`，所以原始模型目录不能混入导出权重。
+
+两步短测试后，除了第3节的checkpoint检查，再核对运行时配方，防止只改了模板而没有生效。下面是默认全局128、当前固定数据的验收；若之后明确修改batch，需要同步重算预算：
+
+```bash
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import json, os
+from pathlib import Path
+r = json.loads((Path(os.environ['PAIR_RUN']) / 'training/run.json').read_text())
+i, f, b = r['identity'], r['freeze_report'], r['training_budget']
+c, o = i['config'], i['optimizer_recipe']
+assert i['mode'] == 'fm_only' and i['objective_version'] == 'native_sft_full_action_mean_a60_v1'
+assert c['training_recipe'] == 'stage1_a60_sft_v1'
+assert c['horizon'] == 10 and c['action_dim'] == 32 and c['environment_action_dim'] == 7
+assert c['fm_batch'] == 128 and c['fm_epochs'] == 50 and c['pair_batch'] == 0 and c['eta'] == 0
+assert f['trainable_parameters'] == 3353433872 and f['frozen_parameters'] == 0
+assert f['pinned_rlinf_commit'] == 'c70606f08cdca259b8dec03d4430926b5b8fac9d'
+expected = dict(lr=5e-6, adam_beta1=.9, adam_beta2=.95, adam_eps=1e-8,
+                weight_decay=1e-10, clip_grad=1., lr_warmup_steps=100,
+                lr_scheduler='openpi_cosine', min_lr=5e-7, total_training_steps=5250)
+assert all(o[k] == v for k, v in expected.items()), o
+assert not r['validation_enabled'] and b['target_epochs'] == 50
+assert b['windows_per_epoch'] == 13407 and b['expected_updates'] == 5250
+assert not b['source_quota_applied'] and not b['drop_last'] and not b['pad_last']
+assert r['world_size'] == int(os.environ.get('NPROC_PER_NODE', '1'))
+assert i['base']['weights_sha256'] == '4616e4c1966a5fb063b442ea5d69857f45e873222d839b794634d87d252ab9e7'
+print('PASS: runtime full-model FM, A60 optimizer, global batch128 and 50 epochs')
+PY
+```
+
+前两次更新的实际 `learning_rate_used` 应约为4.950495e-8和9.900990e-8，处于100步warmup中；`learning_rate`字段表示scheduler更新后的下一步值，不能误认为峰值5e-6未生效。不要以H100/A800的loss逐位相同作为验收条件；检查有限且非零的梯度、正确计数、保存恢复与配置。多卡短测应使用计划正式使用的单机卡数和全局batch。
+
+配置中的兼容字段不能代替实际运行预算：`state_stride=10`用于匹配，训练池的密集起点是stride1；`vla_fraction=0.75`在当前整轮FM抽样中不施加3:1配额；`fm_only_updates=100`是旧兼容字段，`fm_epochs=50`存在时使用完整epoch预算。验收以 `run.json.training_budget` 和实际metrics为准。
+
 ## 验证范围
 
 2026-11-03本机125项训练/匹配测试通过、3项因缺少RLinf/OmegaConf跳过；来源/转换/建库20项测试通过。缺少的原生环境检查在A800执行。
 A800实际已完成：原生全参数FM与视觉梯度、4次GPU0有界更新（断点恢复2次/连续2次）、最终权重及全部日志精确一致。验证batch2/micro1，生产batch128；峰值allocated32.42GiB。全部13,407窗口对齐100个原Parquet，动作误差0；5个真实输入探针与A60原reader/原生变换一致，归一化动作差异<2.4e-7。
 本轮另以global128/micro1、GPU0、allocator40GiB完成2次真实更新，监督256窗口，loss/梯度有限，checkpoint已保存；达到requested_update_limit后自动退出并释放GPU。输出为 `training_runs/pi05_stage1_a60_batch128_smoke_20261103_v1/`。A800本轮26项相关CPU检查通过，覆盖本机跳过项。
-迁移文档补充后，11个Bash代码块和4个内嵌Python片段通过语法检查；六个HF目录的映射/重复执行保护以临时目录和模拟下载检查通过。本文建库验收和checkpoint CPU重载片段已对A800实际资产执行通过；另逐条核验3,543个VLA推进窗口均为10个真实动作、补齐步数0，相关11项窗口测试通过。本次未在空白新机重装环境或重新执行完整下载/建库，也未新增GPU更新。
+迁移文档及已有训练机验收补充后，14个Bash代码块和6个内嵌Python片段通过语法检查；六个HF目录的映射/重复执行保护以临时目录和模拟下载检查通过。本文建库验收和checkpoint CPU重载片段已对A800实际资产执行通过；另逐条核验3,543个VLA推进窗口均为10个真实动作、补齐步数0，相关11项窗口测试通过。新增资产身份和运行时配方检查已在A800执行通过，模型/norm/tokenizer及4份选择/provenance元文件哈希均匹配。本次未在目标迁移机重装环境或重新执行完整下载/建库，也未新增GPU更新。
 详细报告见 [VALIDATION.md](VALIDATION.md) 和资产内 `gpu_validation_report.json`、`a60_data_parity.json`。它们证明检查覆盖的流程正常，不证明正式50轮完成、H100/16卡已实测或任务成功率改善。正式训练状态以独立run为准。
