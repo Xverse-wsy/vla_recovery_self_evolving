@@ -6,6 +6,8 @@
 
 本页说明当前方案1，配方标识为 `stage1_a60_sft_v1`。旧16,324窗口、14段CAP后缀、冻结VLM的运行属于历史版本，不作为本页的启动依据。根目录A60/B80实验与Stage2有各自入口；本页不会自动运行它们。
 
+接手agent按本文顺序完成：环境和下载 → 本机重建四步 → 检查建库结果 → 最多2次更新的短测试 → 检查停止状态与checkpoint。只要求部署/检查时，到短测试验收就停止；“保持50epoch”指正式预算，不代表现在启动正式训练。正式50轮另见第3节的显式续训命令。
+
 当前资产：`dataset_subsets/pi05_recovery_scheme1_stage1_20261102/stage1_a60_sft_v1/`。
 HF：[wsy-w1k/rollout/pi05_recovery_scheme1_20261102](https://huggingface.co/datasets/wsy-w1k/rollout/tree/main/pi05_recovery_scheme1_20261102)。
 
@@ -33,6 +35,8 @@ HF：[wsy-w1k/rollout/pi05_recovery_scheme1_20261102](https://huggingface.co/dat
 - 某个起点通过后，从最早匹配点纳入**同一个实际成功代码段**直到成功的完整后缀，不跨代码轮次。不能声称后续每帧都独立匹配。
 
 匹配stride10与训练stride1不同：训练的第1帧观测监督动作1～10，第2帧观测监督动作2～11，依次滑动。若原VLA推进段长100步，先删末10步，剩90步；合法零起点为0～80，最后窗口监督80～89，不读取已丢弃的90～99。
+
+对VLA推进前缀，任何起点到保留片段末尾不足10个真实动作，都不纳入、不补齐；裁剪后整段不足10步就没有训练窗口，恰好10步只有一个窗口。原段19步→删末10步后剩9步→0窗口；原段20步→剩10步→1窗口。代码在生成窗口和训练前审计中都检查这条规则。
 
 保持现有7维OSC语义、state8、原norm和图像方向，不再转delta、翻图或重采样。原数据逻辑fps10与LIBERO控制20Hz分别记录，不把它们混为重采样要求。
 
@@ -72,6 +76,7 @@ batch可调，预算自动为 `50 * ceil(positive_windows / fm_batch)`。A60根�
 克隆完整适配仓库，不能只拷贝子目录。当前主线包含本配方；HF代码补丁仅用于修补此前旧clone，不需要再覆盖当前GitHub源码。
 
 ```bash
+set -euo pipefail
 git clone https://github.com/Xverse-wsy/vla_recovery_self_evolving.git
 cd vla_recovery_self_evolving
 export PACKAGE="$PWD"
@@ -98,6 +103,72 @@ export JAX_PLATFORMS=cpu
 
 已有完整环境可以复用，但仍须模块安装、`pip check`和固定RLinf源码校验。不能只装子目录pyproject替代完整环境。训练进程会核验RLinf源码；完整安装顺序保留fork版transformers覆盖，见安装脚本。
 
+训练代码验证基线为 `b73a79c`，后续文档修订不改变训练算法。Stage1只需完整适配仓库和固定RLinf源码；OpenPI依赖由安装脚本安装，不需要另clone官方OpenPI、CAP-X或WCM。匹配时冻结视觉编码器，训练时模型自身的视觉编码器和VLM仍参与更新。
+
+### 从HF下载并映射到本机路径
+
+模型下载完整 `RLinf/RLinf-Pi05-LIBERO-SFT`，保留权重和原norm。数据仓库是 `wsy-w1k/rollout`；HF目录名与本机约定目录不同，必须按下表映射，不能直接把HF根目录当作 `dataset_subsets/`。
+
+| HF仓库内路径 | `$PI05_ROOT/dataset_subsets/` 下的路径 |
+|---|---|
+| `author40/` | `rlinf_pi05_libero_fewshot40_20261021/` |
+| `autonomous20/` | `pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot/` |
+| `pi05_recovery_scheme1_20261102/recovery_success20/` | `pi05_recovery_scheme1_stage1_20261102/recovery_success20/` |
+| 同HF前缀下的 `recovery_failure20/` | 同本机前缀下的 `recovery_failure20/` |
+| 同HF前缀下的 `recovery_success20_segmented/` | 同本机前缀下的 `recovery_success20_segmented/` |
+| 同HF前缀下的 `recovery_failure20_segmented/` | 同本机前缀下的 `recovery_failure20_segmented/` |
+
+以下命令用于新工作目录。HF需要认证时先在本机执行 `hf auth login`；token不写入脚本。已有数据可以按表建立软链接，跳过下载，不覆盖原目录。下载数据固定到已发布并核验的提交；不下载任何历史训练补丁或A800索引包。
+
+```bash
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import os
+from pathlib import Path
+from huggingface_hub import snapshot_download
+
+root = Path(os.environ['PI05_ROOT']).expanduser().resolve()
+download = root / 'hf-data'
+prefix = 'pi05_recovery_scheme1_20261102'
+groups = ['recovery_success20', 'recovery_failure20',
+          'recovery_success20_segmented', 'recovery_failure20_segmented']
+mapping = {
+    'rlinf_pi05_libero_fewshot40_20261021': download / 'author40',
+    'pi05_autonomous20_matched_recovery20_20261029/autonomous_success20_lerobot':
+        download / 'autonomous20',
+}
+mapping.update({f'pi05_recovery_scheme1_stage1_20261102/{name}': download / prefix / name
+                for name in groups})
+# 下载前检查，避免覆盖用户现有数据；已有来源请直接复用对应目录。
+for relative in mapping:
+    destination = root / 'dataset_subsets' / relative
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(f'Reuse existing data or choose a new PI05_ROOT: {destination}')
+
+snapshot_download('RLinf/RLinf-Pi05-LIBERO-SFT',
+                  local_dir=root / 'models/RLinf-Pi05-LIBERO-SFT')
+snapshot_download('wsy-w1k/rollout', repo_type='dataset',
+                  revision='aced94d551789d25a7a66af329f9bdcf1b232c2c',
+                  local_dir=download,
+                  allow_patterns=['author40/**', 'autonomous20/**'] +
+                                 [f'{prefix}/{name}/**' for name in groups])
+for relative, source in mapping.items():
+    assert (source / 'meta/info.json').is_file(), source
+    destination = root / 'dataset_subsets' / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.symlink_to(source, target_is_directory=True)
+PY
+
+mkdir -p "$PI05_ROOT/openpi-cache/big_vision"
+# 已有同名tokenizer时保留并跳过curl，也可从A800复制该文件。
+if [[ ! -s "$PI05_ROOT/openpi-cache/big_vision/paligemma_tokenizer.model" ]]; then
+  curl -fL https://storage.googleapis.com/big_vision/paligemma_tokenizer.model \
+    -o "$PI05_ROOT/openpi-cache/big_vision/paligemma_tokenizer.model.download"
+  mv "$PI05_ROOT/openpi-cache/big_vision/paligemma_tokenizer.model.download" \
+    "$PI05_ROOT/openpi-cache/big_vision/paligemma_tokenizer.model"
+fi
+export OPENPI_DATA_HOME="$PI05_ROOT/openpi-cache"
+```
+
 数据和模型不在GitHub。下载HF时保留以下完整目录，包括meta、selection、provenance、action mapping、segments.json及嵌入图像的Parquet：
 
 ```text
@@ -117,6 +188,8 @@ $PI05_ROOT/
 
 专家目录除episodes.json外还需完整meta及所选Parquet；必须按原编号选40条，不能扫描全量示范。tokenizer可放默认 `~/.cache/openpi/big_vision/`，或放上图路径并 `export OPENPI_DATA_HOME="$PI05_ROOT/openpi-cache"`。norm不重新计算。
 
+以上命令依赖同一shell中的环境变量。换终端或重新登录后，重新设置 `PACKAGE`、`PI05_ROOT`、`PI05_TRAIN_PYTHON`、`OPENPI_DATA_HOME`，再执行对应阶段；这些值都是新机绝对路径。
+
 ## 2. 新机器：从已有数据重建库
 
 只下载四个数据目录到上图位置；本流程不需要原始混合runtime、重做OSC转换或仿真。不要把旧 `stage1_libraries.tar.gz` 中的banks/matching/prepared解压到本次重建位置；其中索引是A800绝对路径。若目录已存在，保留归档并改用新工作根目录，不能覆盖旧结果。
@@ -134,9 +207,30 @@ CUDA_VISIBLE_DEVICES=0 "$PI05_TRAIN_PYTHON" "$TASK_BUILD" \
 
 四步依次为：现有四类来源建库→严格CAP匹配→逐帧全train窗口及专家40→生成A60配方资产，并逐窗确认动作、mask、起点和准入范围不变。均不更新模型。`align-training`拒绝覆盖完成目录；需要另版时用 `align_stage1_a60.py --output /new/path`。
 
+使用本页固定数据和配置时，建库后的参考结果是13,407窗口、CAP准入0、全部train、50epoch预算。先检查本机报告；数量不同先核查来源版本和匹配报告，不为凑数量放宽门槛：
+
+```bash
+export TASK_ASSET="$PI05_ROOT/dataset_subsets/pi05_recovery_scheme1_stage1_20261102/stage1_a60_sft_v1"
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import json, os
+from pathlib import Path
+p = Path(os.environ['TASK_ASSET'])
+c = json.loads((p / 'algorithm.json').read_text())
+r = json.loads((p / 'prepared/report.json').read_text())
+b = r['training_budget']
+assert c['training_recipe'] == 'stage1_a60_sft_v1'
+assert c['fm_epochs'] == b['target_epochs'] == 50
+assert c['fm_batch'] == 128 and c['pair_batch'] == 0 and c['eta'] == 0
+assert r['split_policy'] == 'all_train_v1' and not r['validation_enabled']
+assert r['positive_windows'] == 13407 and r['admitted_cap_success_segments'] == 0
+assert b['expected_updates'] == 5250 and b['expected_samples'] == 670350
+print(json.dumps({'positive_windows': r['positive_windows'], 'training_budget': b}, indent=2))
+PY
+```
+
 已有A800当前资产时跳过这四步；不能重复运行 `run_scheme1_build.sh`，它是含导出/等待转换的原始构建入口。通用 `run_positive_fm_pipeline.sh prepare` 使用历史宽松匹配，本次严格方案1不调用它。
 
-## 3. 路径、batch、GPU与正式启动
+## 3. 路径、batch、GPU、短测试与正式50轮
 
 索引可原位复用，不合并/复制训练数据。建议把训练输出放到独立run目录，原prepared保持只读。以下在完成建库的机器执行：
 
@@ -151,18 +245,62 @@ export PAIR_DATA_ROOT="$PI05_ROOT"
 export PAIR_PYTHON="$PI05_TRAIN_PYTHON"
 export PAIR_CHECKPOINT="$PI05_ROOT/models/RLinf-Pi05-LIBERO-SFT"
 export PAIR_NORM_STATS="$PAIR_CHECKPOINT/physical-intelligence/libero/norm_stats.json"
-# 编辑run快照中的fm_micro_batch/fm_batch。更改全局batch后更新预算会重新计算。
-# 默认128/2；共享卡可以用128/1，不改原prepared。
+# 新机器先用micro1短测试，保持全局128；不改原prepared。
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import json, os
+from pathlib import Path
+p = Path(os.environ['PAIR_RUN']) / 'algorithm.json'
+c = json.loads(p.read_text())
+c['fm_micro_batch'] = 1
+assert c['fm_batch'] == 128 and c['fm_epochs'] == 50
+p.write_text(json.dumps(c, indent=2) + '\n')
+PY
 nvidia-smi
 export CUDA_VISIBLE_DEVICES=0           # 仅例子，启动前重新选可用卡
 export NPROC_PER_NODE=1
 export PAIR_TRAIN_MEMORY_GIB=40          # 仅例子：本机实际空闲需额外多4GiB以上
 export PAIR_SAVE_EVERY=500 PAIR_KEEP_LAST=3
-unset PAIR_MAX_UPDATES PAIR_RESUME
+export PAIR_MAX_UPDATES=2              # 只测试2次更新，不启动完整50轮
+unset PAIR_RESUME
+cd "$PACKAGE/pi05_recovery_pair"
+bash scripts/run_positive_fm_pipeline.sh train > "$PAIR_RUN/train.log" 2>&1
+```
+
+该前台命令达到2次更新后会保存checkpoint并退出。日志重定向后终端暂时没有输出是正常的，可从另一终端 `tail -f "$PAIR_RUN/train.log"`；模型加载和保存约20.8GB checkpoint可能耗时。短测试的epoch配置仍是50，`PAIR_MAX_UPDATES=2`只限制本次执行。
+
+短测试完成后检查状态、两次更新的有限loss/梯度，以及checkpoint可在CPU重载；不使用GPU：
+
+```bash
+"$PI05_TRAIN_PYTHON" - <<'PY'
+import json, math, os
+from pathlib import Path
+import torch
+p = Path(os.environ['PAIR_RUN']) / 'training'
+s = json.loads((p / 'status.json').read_text())
+assert s['reason'] == 'requested_update_limit' and s['updates'] == 2
+assert s['target_epochs'] == 50 and s['samples_seen'] == 256
+metrics = [json.loads(line) for line in (p / 'metrics.jsonl').read_text().splitlines()]
+assert len(metrics) == 2 and all(m['fm_count'] == 128 and m['pair_count'] == 0 for m in metrics)
+assert all(math.isfinite(m[k]) for m in metrics for k in ('loss', 'gradient_norm_before_clip'))
+c = torch.load(p / 'update_000002.pt', map_location='cpu', mmap=True, weights_only=False)
+assert c['update'] == 2 and c['identity']['objective_version'] == 'native_sft_full_action_mean_a60_v1'
+assert all(k in c for k in ('optimizer', 'lr_scheduler', 'sampler', 'torch_rng', 'numpy_rng', 'python_rng'))
+print('PASS: 2-update smoke stopped; checkpoint reloaded on CPU; formal budget remains 50 epochs.')
+PY
+nvidia-smi
+```
+
+部署/检查任务在这里停止。用户明确要求正式训练后，保留同一个run、数据和全局batch，从这2步继续到总计50epoch；不是再额外训练50轮：
+
+```bash
+unset PAIR_MAX_UPDATES
+export PAIR_RESUME="$PAIR_RUN/training/update_000002.pt"
 cd "$PACKAGE/pi05_recovery_pair"
 screen -dmS pi05_stage1 bash -c \
   'exec bash scripts/run_positive_fm_pipeline.sh train >> "$PAIR_RUN/train.log" 2>&1'
 ```
+
+后台启动需要系统安装 `screen`；不用screen时可在持久终端直接运行相同的 `bash scripts/run_positive_fm_pipeline.sh train`。正式启动前重新检查选中卡的显存和进程。不要重做 `mkdir "$PAIR_RUN"`，也不要重复创建prepared软链接。
 
 `PAIR_TRAIN_MEMORY_GIB`是每卡PyTorch allocator上限，不含全部CUDA/NCCL开销，不是资源预留或总显存硬隔离。启动前必须检查他人进程和空闲显存；不kill他人进程。本配方已有micro1实测峰值32.42GiB；17GiB冻结版预算不适用。可用显存不足时降低microbatch或换可用卡，不抬高上限挤占其他进程。
 
@@ -170,7 +308,7 @@ screen -dmS pi05_stage1 bash -c \
 
 修改项：运行快照 `PAIR_RUN/algorithm.json` 的 `fm_batch` / `fm_micro_batch`；共享 `config/base.yaml` 的优化器和调度。模型/学习率/clip/seed/epoch等与JSON不一致会拒绝启动。数据/全局batch/目标变更用新run，不能续旧checkpoint。只改microbatch在重启时受支持，但不承诺不同卡数/微批的浮点路径逐位一致。
 
-新机器若要先短训，把 `PAIR_MAX_UPDATES=2` 后启动；通过后取消限制并设置 `PAIR_RESUME="$PAIR_RUN/training/update_000002.pt"` 继续同一个run。不能把此前验证batch2的checkpoint接到正式batch128上。本机生产配置的2步短训则可续训到完整50轮。
+不能把此前验证batch2的checkpoint接到正式batch128上。只有相同数据、模型、全局batch和配置的短测试checkpoint才能按上面的命令续训。换终端后，需恢复本节中全部路径/GPU环境变量；`PAIR_RESUME`设为实际完整checkpoint，不能只恢复一个变量就启动。
 
 ## 4. 查看、恢复和导出
 
@@ -203,4 +341,5 @@ bash scripts/run_positive_fm_pipeline.sh export > "$PAIR_RUN/export.log" 2>&1
 2026-11-03本机125项训练/匹配测试通过、3项因缺少RLinf/OmegaConf跳过；来源/转换/建库20项测试通过。缺少的原生环境检查在A800执行。
 A800实际已完成：原生全参数FM与视觉梯度、4次GPU0有界更新（断点恢复2次/连续2次）、最终权重及全部日志精确一致。验证batch2/micro1，生产batch128；峰值allocated32.42GiB。全部13,407窗口对齐100个原Parquet，动作误差0；5个真实输入探针与A60原reader/原生变换一致，归一化动作差异<2.4e-7。
 本轮另以global128/micro1、GPU0、allocator40GiB完成2次真实更新，监督256窗口，loss/梯度有限，checkpoint已保存；达到requested_update_limit后自动退出并释放GPU。输出为 `training_runs/pi05_stage1_a60_batch128_smoke_20261103_v1/`。A800本轮26项相关CPU检查通过，覆盖本机跳过项。
+迁移文档补充后，11个Bash代码块和4个内嵌Python片段通过语法检查；六个HF目录的映射/重复执行保护以临时目录和模拟下载检查通过。本文建库验收和checkpoint CPU重载片段已对A800实际资产执行通过；另逐条核验3,543个VLA推进窗口均为10个真实动作、补齐步数0，相关11项窗口测试通过。本次未在空白新机重装环境或重新执行完整下载/建库，也未新增GPU更新。
 详细报告见 [VALIDATION.md](VALIDATION.md) 和资产内 `gpu_validation_report.json`、`a60_data_parity.json`。它们证明检查覆盖的流程正常，不证明正式50轮完成、H100/16卡已实测或任务成功率改善。正式训练状态以独立run为准。

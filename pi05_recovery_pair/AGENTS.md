@@ -2,6 +2,8 @@
 
 当前操作文档是 [README_STAGE1.md](README_STAGE1.md)；来源与重建工具见 [README_SCHEME1_STAGE1.md](../recovery_conversion/README_SCHEME1_STAGE1.md)，验证见 [VALIDATION.md](VALIDATION.md)。先按当前文档操作，不从README后半的历史pair实验启动本轮。
 
+迁移按主说明的HF目录映射和固定revision下载，再重建本机库。默认操作做到2步短测试及CPU checkpoint重载验收就停止；正式50epoch保持独立显式入口。前缀先删末10步，任何起点不足完整真实H10均不纳入，裁剪后不足10步的整个前缀不产生窗口。
+
 ## 最新授权
 
 2026-11-03：对齐Stage1到A60、检查代码/文档、push GitHub；A800只做最多2次更新的GPU测试，不正式长训。测试保持global128，用micro1和GPU0 allocator40GiB，启动前确认额外4GiB余量。绝不kill他人进程。后续正式50epoch需明确授权。

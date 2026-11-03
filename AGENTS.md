@@ -4,6 +4,8 @@
 
 先读 [pi05_recovery_pair/README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。这是当前方案1从部署、建库到训练/恢复/导出的唯一操作说明。根目录A60/B80和旧Stage2是独立实验，不能混用其数据量或启动命令。
 
+主说明已包含HF实际目录映射、固定数据revision下载、本机重建、建库计数验收、2步短测试及CPU checkpoint重载检查。部署/核查任务按短测试入口执行，到验收停止；正式50epoch命令单独列出，不因按顺序读文档而自动执行。
+
 当前用户授权：复核代码/文档、push GitHub、在A800做有界GPU测试。**不启动正式50轮训练**。最近测试使用GPU0、allocator40GiB、global batch128/microbatch1，最多2次更新。先查nvidia-smi，至少留额外4GiB，不kill他人进程。正式训练命令仅供用户后续显式启动。
 
 - 配方 `stage1_a60_sft_v1`：全参数训练、VLM不冻结、原生训练预处理及完整H10×32 FM均值；真实环境动作7维。A60共用config/base.yaml与原生AdamW/调度：lr5e-6、β=(.9,.95)、eps1e-8、weight_decay1e-10、clip1、warmup100、cosine到5e-7。
