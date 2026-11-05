@@ -1,0 +1,34 @@
+{
+  "recipe": "stage1_a60_sft_v1",
+  "objective": "native_sft_full_action_mean_a60_v1",
+  "initialization": "original_fewshot",
+  "full_model_trainable": true,
+  "epochs": 50,
+  "updates": 5250,
+  "global_batch": 128,
+  "windows": 13407,
+  "unique_real_frames": 13767,
+  "window_presentations": 670350,
+  "windows_by_source": {
+    "expert": 6632,
+    "autonomous_success": 3232,
+    "vla_progress": 3543
+  },
+  "admitted_cap_success_segments": 0,
+  "horizon": 10,
+  "model_action_dim": 32,
+  "environment_action_dim": 7,
+  "learning_rate": 5e-06,
+  "min_learning_rate": 5e-07,
+  "warmup_updates": 100,
+  "adam_betas": [
+    0.9,
+    0.95
+  ],
+  "adam_eps": 1e-08,
+  "weight_decay": 1e-10,
+  "gradient_clip": 1.0,
+  "all_train": true,
+  "validation_enabled": false,
+  "training_code_commit": "96c4fe8815ac52a72fcf467dd018606f3eff82d9"
+}

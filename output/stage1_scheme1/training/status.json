@@ -1,0 +1,17 @@
+{
+  "reason": "epochs_complete",
+  "updates": 5250,
+  "target_epochs": 50,
+  "windows_per_epoch": 13407,
+  "batches_per_epoch": 105,
+  "expected_updates": 5250,
+  "expected_samples": 670350,
+  "tail_batch_size": 95,
+  "source_quota_applied": false,
+  "drop_last": false,
+  "pad_last": false,
+  "epochs_completed": 50,
+  "position_in_epoch": 0,
+  "samples_seen": 670350,
+  "validation_enabled": false
+}

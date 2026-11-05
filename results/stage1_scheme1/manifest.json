@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "files": {
+    "output/stage1_scheme1/README.md": {
+      "bytes": 1521,
+      "sha256": "6ef203f40a0dddcff3dc0f2b8770b82108608096d07086fe5a1a99950fa8779e"
+    },
+    "output/stage1_scheme1/evaluation/episodes.jsonl": {
+      "bytes": 863807,
+      "sha256": "766ae8aa54fad1993e54855f90fef83d8504e9509c37fbed516d1aa5f340a561"
+    },
+    "output/stage1_scheme1/evaluation/videos.zip": {
+      "bytes": 255490012,
+      "sha256": "c19a9c71f5c1189110b220409cc96f6894f5b03e2b7c77d462acee5a074c825c"
+    },
+    "output/stage1_scheme1/training/metrics.jsonl": {
+      "bytes": 2078553,
+      "sha256": "5bb3cc5ce2a570da793e8246ec54f18616eda4f50310b4160398aba702376d86"
+    },
+    "output/stage1_scheme1/training/status.json": {
+      "bytes": 402,
+      "sha256": "98c0a064693e623e169705c3153981538ddbd1128410fae9ea181c59b72b89e7"
+    },
+    "results/stage1_scheme1/README.md": {
+      "bytes": 2164,
+      "sha256": "cb3bb2e88c0e98c81cc14d4ef265f174766c8c1514d71808de2841270043528a"
+    },
+    "results/stage1_scheme1/comparison.json": {
+      "bytes": 870,
+      "sha256": "28d359040c7f3542833f125cc05afd341f77ffc06eb827a2e52ccd7f570b516f"
+    },
+    "results/stage1_scheme1/protocol.json": {
+      "bytes": 786,
+      "sha256": "53b4a890643cf07b9d7c1d734a32ca76267ca96a76263896cc3b5e1852e5d8f2"
+    },
+    "results/stage1_scheme1/sanitization.json": {
+      "bytes": 698,
+      "sha256": "37e13995804e87377f763e18711ced2c6b417314d9e10a60ce91b6214770925c"
+    },
+    "results/stage1_scheme1/summary.json": {
+      "bytes": 503,
+      "sha256": "ec9383235d4a23c501cd57e70a766d00403e3ac12936f7a08abb1f85bea1c2f5"
+    },
+    "results/stage1_scheme1/training.json": {
+      "bytes": 837,
+      "sha256": "fd0444ae2f84a8ed9b889a3d77757b8a9babb48aaddb61e99a7e51d0cd5764bf"
+    }
+  },
+  "validation": {
+    "training_updates": 5250,
+    "episodes": 2000,
+    "videos": 2000,
+    "unique_episode_identities": true,
+    "aggregate_counts_match": true,
+    "initial_states_match_historical_references": true,
+    "video_metadata_allowlist_checked": 2000,
+    "video_frame_counts_checked": 2000,
+    "video_zip_crc_checked": true,
+    "video_pixels": "simulation_camera_only_by_writer_source_inspection_and_24_representative_frames_from_8_episodes",
+    "all_video_frames_decoded": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "state": "passed",
+  "scope": "new_output_and_results_bundle_and_updated_root_documents",
+  "method": "explicit_field_allowlists_and_sensitive_pattern_scan",
+  "personal_paths_removed": true,
+  "accounts_and_credentials_excluded": true,
+  "machine_and_deployment_information_excluded": true,
+  "hardware_and_capacity_information_excluded": true,
+  "execution_timing_excluded": true,
+  "raw_logs_and_checkpoints_excluded": true,
+  "archive_member_names_checked": 2000,
+  "archive_timestamps_normalized": true,
+  "video_metadata_allowlist_checked": 2000,
+  "representative_video_episodes_reviewed": 8,
+  "representative_video_frames_reviewed": 24,
+  "all_video_frames_visually_reviewed": false
+}

@@ -1,0 +1,41 @@
+{
+  "new_stage1": {
+    "episodes": 2000,
+    "successes": 1461,
+    "success_rate": 0.7305,
+    "flow_steps": 5
+  },
+  "fixed_historical_references": {
+    "baseline": {
+      "episodes": 2000,
+      "successes": 1484,
+      "success_rate": 0.742,
+      "flow_steps": 3
+    },
+    "a60": {
+      "episodes": 2000,
+      "successes": 1519,
+      "success_rate": 0.7595,
+      "flow_steps": 3
+    },
+    "b80": {
+      "episodes": 2000,
+      "successes": 1205,
+      "success_rate": 0.6025,
+      "flow_steps": 3
+    },
+    "stage1": {
+      "episodes": 2000,
+      "successes": 1268,
+      "success_rate": 0.634,
+      "flow_steps": 3
+    }
+  },
+  "initial_state_hashes_match_all_references": true,
+  "controlled_comparison": false,
+  "limitations": [
+    "flow_steps_differ",
+    "historical_weight_loading_differs",
+    "training_initial_state_overlap_unknown"
+  ]
+}
