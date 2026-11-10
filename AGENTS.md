@@ -8,11 +8,14 @@
 13个中间片段仅起点0..n-10，不重复末动作；9个最终LIBERO成功段可按A60补齐。
 prompt必须用父轨迹完整instruction；不再额外物理删除段末10步。
 保留A60/B80及原Stage1行为；direct_data.build_raw只为新kind选择新读取器。
-本次授权CPU测试、HF上传、GitHub推送；GPU短测试延后到A800连接恢复，
-不要依据下文旧GPU授权现在开训。数据/权重不入Git。HF新增目录pi05_subtasks22_20261110。
+最新用户已授权CPU测试、HF上传、GitHub推送和A800有界GPU短测试；
+先查当前空闲显存，不影响其他进程，不启动正式50轮。2026-11-10已连上核对环境、
+RLinf版本及GPU占用，但后续SSH超时且A800访问HF有TLS错误，原生变换/GPU测试未执行。
+本机28项测试通过；不能把CPU数据验收写成GPU训练通过。
+数据/权重不入Git。HF新增目录pi05_subtasks22_20261110。
 CPU入口：python -m subtask_training.plan --output /new/report；测试：python -m pytest tests -q。
 
-## 当前Stage1（2026-11-03）
+## 现有方案1 Stage1（2026-11-03，独立实验）
 
 先读 [pi05_recovery_pair/README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。这是当前方案1从部署、建库到训练/恢复/导出的唯一操作说明。根目录A60/B80和旧Stage2是独立实验，不能混用其数据量或启动命令。
 

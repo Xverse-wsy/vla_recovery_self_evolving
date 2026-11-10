@@ -83,7 +83,7 @@ def main():
                 subtask_windows_checked=len(raw.clips),a60_boundary_windows_checked=len(probes),
                 epoch_plan=plan.describe(),epochs=epochs,updates=epochs*plan.updates_per_epoch,
                 all_50_epoch_permutations_checked=True,gpu_used=False,model_training_performed=False,
-                native_rlinf_transform_probe='deferred_until_A800_connection_restored')
+                native_rlinf_transform_probe='not_run_by_this_command_use_native_probe.py')
     dump(args.output/'preflight.json',report)
     print(json.dumps(report,indent=2))
 

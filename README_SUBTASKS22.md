@@ -10,9 +10,11 @@
 `config/a60_subtasks22.yaml`直接继承A60；启动时逐字段核对数据/输出名称之外的配方。
 无新匹配、负训练、pair分支或验证早停。
 
-本次完成本机CPU数据、配置、取样测试及数据/代码发布。
-**用户要求A800连接恢复后再做原生变换和GPU测试，本次没有启动GPU训练或正式训练。**
-CPU验收不表示CUDA/Ray/RLinf前向、优化器更新或LIBERO成功率已验证。
+本次完成本机CPU数据、配置、取样测试及数据/代码发布，28项测试通过。
+用户最新授权在A800做有界GPU短测。2026-11-10已实际连接核对环境、原始60条路径、
+模型及固定RLinf版本；随后SSH重新超时，A800访问HF也报TLS断连。
+**原生预处理探针、GPU前向/反向和优化器更新尚未执行，正式50轮没有启动。**
+CPU验收不表示CUDA/Ray/RLinf训练或LIBERO成功率已验证。后续从下文短测入口继续。
 
 ## 数据和尾部规则
 
@@ -121,9 +123,9 @@ source_windows=6632/3232/1194、parent_instructions_only=true、intermediate_tai
 A60配方逐字段一致、50轮完整覆盖。数量不符先查路径和专家episodes.json，不能删校验绕过。
 此命令不导入Ray、不加载模型或CUDA。
 
-## A800恢复后的原生变换和GPU短测试
+## 原生变换和GPU短测试
 
-本次暂缓，连接恢复后手动运行：
+CPU验收通过后，先运行原生变换探针，再运行GPU短测；本次因连接中断未完成这两步：
 
 ```bash
 CUDA_VISIBLE_DEVICES='' JAX_PLATFORMS=cpu "$PI05_TRAIN_PYTHON" subtask_training/native_probe.py \
@@ -141,7 +143,12 @@ bash run_train.sh --experiment a60_subtasks22 --smoke \
 第一条只测试CPU原生变换/EnvIO/tokenizer，不加载模型权重。
 smoke沿用A60的15样本/2轮，覆盖三种来源并检查checkpoint恢复；
 它会为短测试缩小batch/warmup，不是正式50轮配方。
-根据实际显存调整allocator和microbatch并保留headroom。GPU资源检查不能代替实际短测试。
+根据实际显存调整allocator和microbatch并保留headroom。入口要求每卡初始空闲显存至少为
+`gpu-memory-limit-gib + gpu-headroom-gib + 1` GiB；上例需要53GiB。
+2026-11-10检查时所有卡均有任务、仅余约40～44GiB，不能照抄上例的40GiB上限。
+allocator上限约束本进程PyTorch分配，CUDA上下文等另占显存；不足时测试退出，不停止其他进程。
+GPU资源检查不能代替实际短测试。成功后检查本run的`status.json`为`complete`、
+`roundtrip_report.json`的原跑/恢复结果一致，并查看`progress_rank_*.json`的峰值显存。
 
 ## 正式50轮与恢复
 
