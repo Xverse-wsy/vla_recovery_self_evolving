@@ -9,9 +9,12 @@
 prompt必须用父轨迹完整instruction；不再额外物理删除段末10步。
 保留A60/B80及原Stage1行为；direct_data.build_raw只为新kind选择新读取器。
 最新用户已授权CPU测试、HF上传、GitHub推送和A800有界GPU短测试；
-先查当前空闲显存，不影响其他进程，不启动正式50轮。2026-11-10已连上核对环境、
-RLinf版本及GPU占用，但后续SSH超时且A800访问HF有TLS错误，原生变换/GPU测试未执行。
-本机28项测试通过；不能把CPU数据验收写成GPU训练通过。
+先查当前空闲显存，不影响其他进程，不启动正式50轮。2026-11-10连接恢复后，复用A800
+12条哈希一致的转换父轨迹恢复原22段；全部训练列与HF版一致。HF HTTPS仍有TLS错误。
+本机/A800各32项CPU测试、完整数据验收和原生5样本变换通过；GPU4的10次更新及第2步
+恢复重放8次通过，最终权重/优化器/输入计数一致。峰值allocated32.363/reserved33.973GiB，
+allocator34GiB/headroom8GiB；测试已退出释放GPU，原有进程均仍在。完整50轮未启动。
+短测保留全部早期checkpoint供第2步恢复，正式最近3份策略和A60配方保持原行为。
 数据/权重不入Git。HF新增目录pi05_subtasks22_20261110。
 CPU入口：python -m subtask_training.plan --output /new/report；测试：python -m pytest tests -q。
 

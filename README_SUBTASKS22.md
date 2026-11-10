@@ -10,11 +10,13 @@
 `config/a60_subtasks22.yaml`直接继承A60；启动时逐字段核对数据/输出名称之外的配方。
 无新匹配、负训练、pair分支或验证早停。
 
-本次完成本机CPU数据、配置、取样测试及数据/代码发布，28项测试通过。
-用户最新授权在A800做有界GPU短测。2026-11-10已实际连接核对环境、原始60条路径、
-模型及固定RLinf版本；随后SSH重新超时，A800访问HF也报TLS断连。
-**原生预处理探针、GPU前向/反向和优化器更新尚未执行，正式50轮没有启动。**
-CPU验收不表示CUDA/Ray/RLinf训练或LIBERO成功率已验证。后续从下文短测入口继续。
+本机和A800的32项CPU回归测试通过，真实数据完整验收及5个样本的原生预处理探针通过。
+A800的HF HTTPS仍报TLS断连，本次复用服务器原有12条转换父轨迹恢复原22段，
+核对12个父文件SHA256及22段全部训练列，与HF发布版逻辑数据一致。
+GPU4的10次更新及从第2步恢复的8次重放全部通过，权重/优化器/输入计数完全一致。
+峰值allocated32.363GiB、reserved33.973GiB；测试退出后GPU4显存恢复到启动前水平。
+正式50轮没有启动。
+短测只验证执行与恢复，完整50轮训练和LIBERO成功率需后续实验验证。
 
 ## 数据和尾部规则
 
@@ -125,7 +127,7 @@ A60配方逐字段一致、50轮完整覆盖。数量不符先查路径和专家
 
 ## 原生变换和GPU短测试
 
-CPU验收通过后，先运行原生变换探针，再运行GPU短测；本次因连接中断未完成这两步：
+CPU验收通过后，先运行原生变换探针，再运行GPU短测：
 
 ```bash
 CUDA_VISIBLE_DEVICES='' JAX_PLATFORMS=cpu "$PI05_TRAIN_PYTHON" subtask_training/native_probe.py \
@@ -134,21 +136,23 @@ CUDA_VISIBLE_DEVICES='' JAX_PLATFORMS=cpu "$PI05_TRAIN_PYTHON" subtask_training/
   --reference-dataset "$PI05_AUTHOR40_DIR"
 
 nvidia-smi
-export PI05_GPUS=0,1  # 改成实际分配的空闲卡，不停止他人进程
+export PI05_GPUS=4  # 改成实际分配的卡；启动前重新检查空闲显存
 bash run_train.sh --experiment a60_subtasks22 --smoke \
   --output "$PI05_ROOT/training_runs/subtasks22_smoke_new" \
-  --micro-batch-size 1 --gpu-memory-limit-gib 40 --gpu-headroom-gib 12
+  --micro-batch-size 1 --gpu-memory-limit-gib 34 --gpu-headroom-gib 8
 ```
 
 第一条只测试CPU原生变换/EnvIO/tokenizer，不加载模型权重。
 smoke沿用A60的15样本/2轮，覆盖三种来源并检查checkpoint恢复；
 它会为短测试缩小batch/warmup，不是正式50轮配方。
 根据实际显存调整allocator和microbatch并保留headroom。入口要求每卡初始空闲显存至少为
-`gpu-memory-limit-gib + gpu-headroom-gib + 1` GiB；上例需要53GiB。
-2026-11-10检查时所有卡均有任务、仅余约40～44GiB，不能照抄上例的40GiB上限。
+`gpu-memory-limit-gib + gpu-headroom-gib + 1` GiB；上例需要43GiB。
+2026-11-10实际短测选GPU4，启动时约44GiB空闲；该显存状态不是后续运行的资源预留。
 allocator上限约束本进程PyTorch分配，CUDA上下文等另占显存；不足时测试退出，不停止其他进程。
 GPU资源检查不能代替实际短测试。成功后检查本run的`status.json`为`complete`、
 `roundtrip_report.json`的原跑/恢复结果一致，并查看`progress_rank_*.json`的峰值显存。
+单卡micro1短测为10次更新，并从第2步恢复后重放；短测会保留恢复所需的全部checkpoint，
+修复了默认最近3份保留策略提前清理第2步的情况。正式训练仍按原规则保留最近3份。
 
 ## 正式50轮与恢复
 
@@ -193,7 +197,34 @@ python -m subtask_training.validate --output /path/to/new_output --review /path/
   --norm-stats /path/to/new_output/assets/norm_stats.json
 ```
 
-本机CPU证据：28项测试；22段父行/图像字节核对、2622张RGB解码、1194窗口完整加载、
+本机CPU证据：32项测试；22段父行/图像字节核对、2622张RGB解码、1194窗口完整加载、
 单/双worker读取、归一化与既有训练器误差0；真实40＋20＋22混合batch；
 默认及16rank配置的50轮完整取样；原尾批参考的144种计划、403次梯度比较、
-366个零权重同步batch。报告随HF数据提供。GPU模型前向、真实优化更新和完整50轮均未执行。
+366个零权重同步batch。初版CPU报告随HF固定数据revision提供；最新A800验证范围如下。
+
+## A800实际验证（2026-11-10）
+
+- 原有训练环境、few-shot权重、norm、tokenizer及RLinf固定版本原位复用，未重装共享依赖。
+- 本机及A800各32项CPU回归测试通过，覆盖单卡/双卡短测恢复所需checkpoint保留，以及正式最近3份策略。
+- A800完整混合数据验收：82条数据条目、40任务、11058窗口；原22段1194个窗口全部核对，
+  中间片段补齐为0，完整父任务instruction保持一致，50轮采样完整。
+- 原生RLinf/OpenPI探针5个真实样本通过：图像和token/mask完全一致；动作归一化最大误差
+  2.77e-7，state最大误差2.73e-8。该探针不加载模型权重。
+- GPU4全参数SFT短测通过：3353433872个可训练参数，VLM和action expert均参与；
+  15窗口、global3/micro1、2个短测epoch、10次更新，loss及梯度均有限。
+- 第2步checkpoint加载后重放8次更新，最终权重、优化器状态、数据游标和计数完全一致。
+  短测发现并修复早期checkpoint被保留策略提前删除的问题；32项CPU测试已覆盖此回归。
+- allocator上限34GiB、额外headroom8GiB；包括恢复重放的峰值allocated32.363GiB、
+  reserved33.973GiB。退出后GPU4恢复45261MiB空闲，启动前已有GPU进程均仍在。
+- A800报告：`$PI05_ROOT/reports/subtasks22_a800_20261110_v2/`；
+  短测输出：`$PI05_ROOT/training_runs/subtasks22_a800_smoke_20261110_v2/`。
+  测试完成后清理了本次第4/6/8步冗余checkpoint，保留第2/10步及全部报告。
+- 可随代码查看[验证摘要](subtask_training/validation_a800_20261110.json)。
+
+本次只验证单张A800；H100/16卡硬件通信、正式50轮和LIBERO成功率未运行。
+
+本次A800数据目录为
+`$PI05_ROOT/dataset_subsets/pi05_subtasks22_parent_restore_20261110_v1/segmented`，
+使用它时显式设置`PI05_SUBTASK22_DIR`。Parquet writer为19.0.1，发布版为26.0.1，
+文件封装字节哈希可能不同；父文件哈希和输出全部训练列均逐一验证一致。
+新机器仍直接下载上面的HF固定版本，无需重复恢复父轨迹。

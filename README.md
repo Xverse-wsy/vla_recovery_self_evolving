@@ -3,7 +3,8 @@
 **新增实验：A60＋原始22个可靠子片段**。入口：[README_SUBTASKS22.md](README_SUBTASKS22.md)。
 专家40＋自主成功20＋22段，共11058个密集窗口，完整50epoch，直接继承A60全参数SFT配方。
 中间片段不补齐，最终LIBERO成功片段沿用成功尾部规则；prompt使用父轨迹instruction。
-本机28项CPU测试通过，HF数据已核验；A800检查中途SSH再次超时，原生变换/GPU测试未执行。
+本机及A800的32项CPU测试、完整数据验收、原生变换探针及GPU4短测/恢复重放全部通过。
+真实10次更新后从第2步恢复，最终权重/优化器/输入计数一致；完整50轮未启动。
 实际验证范围和短测命令见上述新实验文档。原方案1和A60/B80入口保留如下。
 
 Agent先读 [AGENTS.md](AGENTS.md)。以下为原方案1片段Stage1，操作入口是[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。它与本次`a60_subtasks22`数据范围和入口不同；本次只按[README_SUBTASKS22.md](README_SUBTASKS22.md)运行。

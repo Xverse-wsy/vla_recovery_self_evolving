@@ -4,8 +4,6 @@ import json
 import math
 import os
 from pathlib import Path
-import re
-import shutil
 import time
 import random
 import numpy as np
@@ -19,6 +17,7 @@ from rlinf.runners.sft_runner import SFTRunner
 from rlinf.utils.utils import get_rng_state, set_rng_state
 from rlinf.workers.sft.fsdp_vla_sft_worker import FSDPVlaSftWorker
 from epoch_plan import EpochPlan, ExactEpochSampler
+from checkpoint_retention import prune_checkpoints
 
 
 def write_json(path, value):
@@ -279,22 +278,6 @@ class TrainingWorker(FSDPVlaSftWorker):
                         peak_reserved_gib=torch.cuda.max_memory_reserved()/2**30,
                         unix_time=time.time()))
         return result
-
-
-def prune_checkpoints(root, keep=3):
-    """Only remove completed checkpoints in this run, after a new save succeeds."""
-    root = Path(root).resolve()
-    completed = sorted((p for p in root.iterdir()
-                        if re.fullmatch(r'global_step_\d+', p.name)
-                        and p.is_dir() and not p.is_symlink()
-                        and (p / 'COMPLETE.json').is_file()),
-                       key=lambda p: int(p.name.rsplit('_', 1)[1]))
-    removed = []
-    for path in completed[:-keep]:
-        assert path.resolve().parent == root
-        shutil.rmtree(path)
-        removed.append(path.name)
-    return removed
 
 
 class RetainingRunner(SFTRunner):

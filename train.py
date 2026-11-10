@@ -97,6 +97,10 @@ def main():
     plan = EpochPlan(samples, len(gpus), cfg.actor.micro_batch_size,
                      cfg.actor.global_batch_size // (len(gpus) * cfg.actor.micro_batch_size))
     max_updates = plan.updates_per_epoch * cfg.runner.max_epochs
+    if args.smoke:
+        from checkpoint_retention import smoke_checkpoint_keep
+        cfg.runner.keep_last_checkpoints = smoke_checkpoint_keep(
+            max_updates, cfg.runner.save_interval, cfg.runner.keep_last_checkpoints)
     if args.resume:
         resume = args.resume.resolve()
         assert (resume / 'COMPLETE.json').is_file()

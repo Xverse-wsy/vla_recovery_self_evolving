@@ -1,0 +1,106 @@
+{
+  "state": "passed",
+  "date": "2026-11-10",
+  "timezone": "Asia/Hong_Kong",
+  "experiment": "a60_subtasks22",
+  "dataset": {
+    "repo": "wsy-w1k/rollout",
+    "revision": "d41d10e8701771c087e73d9296f62bc4c78487c3",
+    "episodes": 82,
+    "tasks": 40,
+    "training_windows": 11058,
+    "subtask_segments": 22,
+    "subtask_windows": 1194,
+    "subtask_action_rows": 1311,
+    "source_windows": {
+      "author40": 6632,
+      "autonomous20": 3232,
+      "subtask22": 1194
+    },
+    "parent_instructions_only": true,
+    "intermediate_tail_padding": 0,
+    "parents_sha256_verified": 12,
+    "all_training_columns_logically_identical_to_published_parquets": true,
+    "a800_parquet_writer": "19.0.1",
+    "published_parquet_writer": "26.0.1"
+  },
+  "cpu_regression_tests": {
+    "local_passed": 32,
+    "a800_passed": 32
+  },
+  "a60_recipe_parity": {
+    "state": "passed",
+    "model_optimizer_scheduler_runtime_exactly_equal_to_a60": true,
+    "data_scope_is_only_recipe_difference": true,
+    "epochs": 50,
+    "default_global_batch": 100,
+    "flow_steps": 5
+  },
+  "native_probe": {
+    "state": "passed",
+    "samples": 5,
+    "image_and_token_and_mask_errors_zero": true,
+    "max_action_normalization_error": 2.7615655140422746e-07,
+    "max_state_error": 2.7217799125622832e-08,
+    "normalization_sha256": "dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1"
+  },
+  "gpu": {
+    "state": "passed",
+    "physical_gpu": 4,
+    "trainable_parameters": 3353433872,
+    "checkpoint_keys": {
+      "keys": 667,
+      "missing": [],
+      "unexpected": []
+    },
+    "global_batch": 3,
+    "micro_batch": 1,
+    "distinct_windows": 15,
+    "epochs": 2,
+    "initial_updates": 10,
+    "checkpoint_restore_step": 2,
+    "replayed_updates": 8,
+    "original_and_replayed_weights_optimizer_input_counters_exactly_equal": true,
+    "source_data_and_base_checkpoint_unchanged": true,
+    "loss_and_gradient_finite": true,
+    "peak_allocated_gib": 32.362979888916016,
+    "peak_reserved_gib": 33.97265625,
+    "allocator_limit_gib": 34,
+    "headroom_gib": 8,
+    "runtime_seconds": 547.9577083587646,
+    "free_memory_mib_after_exit": 45261,
+    "all_preexisting_gpu_processes_still_running": true,
+    "removed_only_our_redundant_checkpoint_steps": [
+      4,
+      6,
+      8
+    ],
+    "kept_checkpoint_steps": [
+      2,
+      10
+    ]
+  },
+  "formal_checkpoint_retention_unchanged": 3,
+  "fixed_smoke_issue": "Keep the early replay checkpoint until the complete smoke test finishes",
+  "full_50_epoch_training_executed": false,
+  "libero_evaluation_executed": false,
+  "h100_16_gpu_test_executed": false,
+  "tested_training_source_sha256": {
+    "train.py": "83b1afa77c037ad943f7c8dd66efcaad988fe8797be9d849debc4fa659cb2b4c",
+    "training_runtime.py": "b0cc9bab6f154af5de70804bee43d1ab5f1843a62f3800a66281f217d7f36789",
+    "checkpoint_retention.py": "8272953872cc8e4c7f8270b20c5b25ad1ff8e398c0254e7c7c9dbb3603a00ec5",
+    "epoch_plan.py": "c77ebd2fcf2c8cb56a3a278202734dda9144f34168621c6394f958414bfb4c23",
+    "direct_data.py": "30dab9ad2bf08117466d01765eca07ea9f6be4d4098cb9413f7d6fd080865231",
+    "direct_loader.py": "be68092e06ec41216f8905658384db38f1c27a0b3f912f189359aaef6748dbfa",
+    "gpu_budget.py": "d7b53ca855024db7f8d33fbb72e11af2f6f64361f543cb3323c9c849eac6791c",
+    "settings.py": "3880fe1a1078160fe6f038a6e5c09215e1178241f9b65f5191784d7dbc76cd3e",
+    "config/a60.yaml": "484a26c0e53688ee7616f1116d8456cee6850ba520ce1bb22b6ec6734175a7e8",
+    "config/a60_subtasks22.yaml": "86ee7c42a104261a291406afa2a54682373cc519908ff3dae9db374496776555",
+    "config/base.yaml": "4915a3b90461fd028eb370d96f3a982ab3ccedd4954397c05fcdd2a6a1c5d3f0",
+    "subtask_training/dataset.py": "4ec301935bdb169dbe728877b1b79eeb592b5c771ad601b8015aba262083120b",
+    "subtask_training/training_data.py": "9a87ddd441b77e7043e865ad30f09905524bd84e51a77f62b0ac9824e9928d73",
+    "subtask_training/native_probe.py": "a75cac583e3cefddef40ce49f155cf4581aed70963f7e3a977e11c1a309ab269",
+    "subtask_training/plan.py": "5fc5444c26eccafa14641da85c29f84f036e49b8c10a976db82922db5abdb330",
+    "tests/test_checkpoint_retention.py": "a44122ad5bfa975145fa4f906dc5e97bd6ba76968741d7914a7a47f233d655c8"
+  }
+}
