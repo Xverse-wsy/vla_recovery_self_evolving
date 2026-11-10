@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 
 
 def load_config(experiment):
-    if experiment not in ('a60', 'b80'):
+    if experiment not in ('a60', 'b80', 'a60_subtasks22'):
         raise ValueError(experiment)
     with initialize_config_dir(version_base='1.1', config_dir=str(Path(__file__).resolve().parent / 'config')):
         cfg = compose(config_name=experiment)

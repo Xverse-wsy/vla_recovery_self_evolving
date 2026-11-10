@@ -14,7 +14,7 @@ import torch.multiprocessing as mp
 from rlinf.config import validate_cfg
 from rlinf.scheduler import Cluster
 from rlinf.utils.placement import HybridComponentPlacement
-from direct_data import DirectEpisodes
+from direct_data import build_raw
 from epoch_plan import EpochPlan
 from settings import load_config
 from training_runtime import RetainingRunner, TrainingWorker, write_json
@@ -22,7 +22,7 @@ from training_runtime import RetainingRunner, TrainingWorker, write_json
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--experiment', required=True, choices=['a60', 'b80'])
+    ap.add_argument('--experiment', required=True, choices=['a60', 'b80', 'a60_subtasks22'])
     ap.add_argument('--output', required=True, type=Path)
     ap.add_argument('--gpus', required=True, help='Allocated physical GPUs, e.g. 1,3')
     ap.add_argument('--smoke', action='store_true')
@@ -46,6 +46,9 @@ def main():
     if (output / 'status.json').exists() and not args.resume:
         raise FileExistsError(f'Use a fresh output directory: {output}')
     cfg = load_config(args.experiment)
+    if args.experiment=='a60_subtasks22':
+        from subtask_training.training_data import audit_recipe
+        write_json(output/'a60_recipe_parity.json',audit_recipe(cfg,load_config('a60')))
     if args.micro_batch_size is not None:
         cfg.actor.micro_batch_size = args.micro_batch_size
     if args.global_batch_size is not None:
@@ -69,8 +72,8 @@ def main():
         cfg.cluster.component_placement[component] = args.gpus
     cfg.runner.logger.log_path = str(output)
     OmegaConf.update(cfg, 'validation_world_size', len(gpus), force_add=True)
-    raw = DirectEpisodes(OmegaConf.to_container(cfg.data.sources, resolve=True))
-    expected_episodes = 60 if args.experiment == 'a60' else 80
+    raw = build_raw(OmegaConf.to_container(cfg.data.sources, resolve=True))
+    expected_episodes = {'a60':60,'b80':80,'a60_subtasks22':82}[args.experiment]
     assert len(raw.episodes) == expected_episodes
     write_json(output / 'dataset_manifest.json', raw.summary())
     if args.smoke:
@@ -78,8 +81,13 @@ def main():
         # a complete epoch boundary, and every selected data source.
         indices = sorted(set([0, 6631, 6632, 9863, len(raw) - 1] +
                              [int(i * (len(raw) - 1) / 13) for i in range(14)]))[:15]
+        if args.experiment=='a60_subtasks22':
+            from subtask_training.training_data import smoke_indices
+            indices=smoke_indices(len(raw),len(raw.base),raw.base.source_frames['author40'])
         if args.experiment == 'b80' and not any(i >= 9864 for i in indices):
             raise AssertionError('Recovery examples absent from smoke')
+        if args.experiment=='a60_subtasks22' and not any(i>=len(raw.base) for i in indices):
+            raise AssertionError('Reviewed subtask examples absent from smoke')
         cfg.data.validation_indices = indices
         cfg.actor.global_batch_size = len(gpus) * cfg.actor.micro_batch_size * 3
         cfg.runner.max_epochs = 2

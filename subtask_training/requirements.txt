@@ -1,0 +1,9 @@
+numpy==2.2.6
+pyarrow==26.0.1
+Pillow==13.0.0
+requests==2.34.2
+# CPU loader verification only; reuse the existing pinned torch in a training env.
+torch==2.7.1
+hydra-core==1.3.2
+huggingface-hub==1.33.0
+pytest==9.0.2

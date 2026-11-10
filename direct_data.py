@@ -123,13 +123,20 @@ class DirectEpisodes:
         return state
 
 
+def build_raw(sources,horizon=10):
+    if any(s.get('kind')=='reviewed_subtasks' for s in sources):
+        from subtask_training.training_data import MixedEpisodes
+        return MixedEpisodes(sources,horizon=horizon)
+    return DirectEpisodes(sources,horizon=horizon)
+
+
 def build_transformed(cfg, sources=None):
     """Use the installed RLinf/OpenPI transforms and ORIGINAL normalization."""
     import dataclasses
     from omegaconf import OmegaConf
     from openpi.training.data_loader import transform_dataset
     from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
-    raw = DirectEpisodes(sources or OmegaConf.to_container(cfg.data.sources, resolve=True),
+    raw = build_raw(sources or OmegaConf.to_container(cfg.data.sources, resolve=True),
                          horizon=int(cfg.actor.model.openpi.action_horizon))
     config = get_openpi_config('pi05_libero', model_path=cfg.actor.model.model_path,
                               batch_size=cfg.actor.micro_batch_size,

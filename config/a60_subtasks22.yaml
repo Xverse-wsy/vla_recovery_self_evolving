@@ -1,0 +1,22 @@
+defaults:
+  - a60
+  - _self_
+
+# Only data scope and output identity differ from A60. Do not copy/retune its optimizer.
+data:
+  sources:
+    - name: author40
+      path: ${paths.author40}
+      episodes_file: episodes.json
+      episodes: 40
+    - name: autonomous20
+      path: ${paths.autonomous20}
+      episodes: 20
+    - name: subtask22
+      kind: reviewed_subtasks
+      path: ${oc.env:PI05_SUBTASK22_DIR,${oc.env:PI05_ROOT}/dataset_subsets/pi05_subtasks22_20261110/segmented}
+      episodes: 22
+      review_manifest_sha256: 4c221b56cd94419925b87ecd816d5d5bcf7cd33070d4085a0811a461448f68a9
+runner:
+  logger:
+    experiment_name: author40_autonomous20_subtasks22_epoch50
