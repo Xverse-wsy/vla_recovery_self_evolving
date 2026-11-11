@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "hf_repo": "wsy-w1k/rollout",
+  "source_revision": "aced94d551789d25a7a66af329f9bdcf1b232c2c",
+  "selection_rule": "Keep only Goal09, Object09, Spatial01, Spatial06 from fixed prefix10. Existing tail15 crops stay exactly unchanged; restore no rows. Spatial01 retained61 is a progress prefix, not a completed-subtask clip.",
+  "horizon": 10,
+  "training_stride": 1,
+  "tail_policy": "full_real_only",
+  "segments": [
+    {
+      "segment_id": "prefix_libero_goal_09",
+      "suite": "libero_goal",
+      "task_id": 9,
+      "trial_id": 5,
+      "task_instruction": "put the wine bottle on the rack",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000000.parquet",
+      "source_segment_episode_index": 0,
+      "source_parent_episode_index": 0,
+      "canonical_task_index": 11,
+      "source_parent_rows_after_trim10": [
+        0,
+        181
+      ],
+      "untrimmed_parent_range": [
+        0,
+        191
+      ],
+      "retained_parent_action_rows": [
+        0,
+        176
+      ],
+      "retained_segment_rows": [
+        0,
+        176
+      ],
+      "action_count": 176,
+      "trainable_window_count": 167,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_object_09",
+      "suite": "libero_object",
+      "task_id": 9,
+      "trial_id": 4,
+      "task_instruction": "pick up the orange juice and place it in the basket",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000108.parquet",
+      "source_segment_episode_index": 108,
+      "source_parent_episode_index": 18,
+      "canonical_task_index": 20,
+      "source_parent_rows_after_trim10": [
+        0,
+        138
+      ],
+      "untrimmed_parent_range": [
+        0,
+        148
+      ],
+      "retained_parent_action_rows": [
+        0,
+        133
+      ],
+      "retained_segment_rows": [
+        0,
+        133
+      ],
+      "action_count": 133,
+      "trainable_window_count": 124,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_spatial_01",
+      "suite": "libero_spatial",
+      "task_id": 1,
+      "trial_id": 8,
+      "task_instruction": "pick up the black bowl next to the ramekin and place it on the plate",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000072.parquet",
+      "source_segment_episode_index": 72,
+      "source_parent_episode_index": 11,
+      "canonical_task_index": 37,
+      "source_parent_rows_after_trim10": [
+        0,
+        66
+      ],
+      "untrimmed_parent_range": [
+        0,
+        76
+      ],
+      "retained_parent_action_rows": [
+        0,
+        61
+      ],
+      "retained_segment_rows": [
+        0,
+        61
+      ],
+      "action_count": 61,
+      "trainable_window_count": 52,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_spatial_06",
+      "suite": "libero_spatial",
+      "task_id": 6,
+      "trial_id": 0,
+      "task_instruction": "pick up the black bowl next to the cookie box and place it on the plate",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000062.parquet",
+      "source_segment_episode_index": 62,
+      "source_parent_episode_index": 9,
+      "canonical_task_index": 30,
+      "source_parent_rows_after_trim10": [
+        0,
+        115
+      ],
+      "untrimmed_parent_range": [
+        0,
+        125
+      ],
+      "retained_parent_action_rows": [
+        0,
+        110
+      ],
+      "retained_segment_rows": [
+        0,
+        110
+      ],
+      "action_count": 110,
+      "trainable_window_count": 101,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    }
+  ]
+}

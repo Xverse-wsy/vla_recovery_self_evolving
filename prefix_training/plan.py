@@ -15,14 +15,15 @@ from subtask_training.training_data import audit_recipe, smoke_indices
 from .validate import validate
 
 
-def main():
+def main(*, experiment='a60_prefix10', expected_windows=10619,
+         expected_episodes=70, expected_actions=10709, bank_validator=validate):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--world-size', type=int, default=1)
     ap.add_argument('--global-batch-size', type=int)
     ap.add_argument('--micro-batch-size', type=int)
     a = ap.parse_args()
-    cfg, base = load_config('a60_prefix10'), load_config('a60')
+    cfg, base = load_config(experiment), load_config('a60')
     for c in (cfg, base):
         if a.global_batch_size is not None:
             c.actor.global_batch_size = a.global_batch_size
@@ -33,9 +34,9 @@ def main():
     if min(batch, micro, a.world_size) < 1 or batch % (a.world_size * micro):
         raise ValueError('Global batch must divide world_size * microbatch')
     raw = build_raw(OmegaConf.to_container(cfg.data.sources, resolve=True), horizon=10)
-    if (len(raw), len(raw.episodes), len(raw.tasks)) != (10619, 70, 40):
-        raise ValueError('Wrong data: expected unchanged A60 plus ten fixed prefixes')
-    bank_audit = validate(raw.root, write_report=False)
+    if (len(raw), len(raw.episodes), len(raw.tasks)) != (expected_windows, expected_episodes, 40):
+        raise ValueError('Wrong data: expected unchanged A60 plus selected fixed prefixes')
+    bank_audit = bank_validator(raw.root, write_report=False)
     plan = EpochPlan(len(raw), a.world_size, micro, batch // (a.world_size * micro))
     # Original complete-success episode tails must retain normal A60 repetition.
     for i, rec in enumerate(raw.base.episodes):
@@ -46,7 +47,7 @@ def main():
             np.testing.assert_array_equal(sample['actions'], rec['actions'][positions])
             if sample['prompt'] != rec['task']:
                 raise ValueError('A60 instruction changed')
-    batch_data = next(iter(DataLoader(Subset(raw, [0, 6632, 9864, 10618]), batch_size=4, num_workers=0)))
+    batch_data = next(iter(DataLoader(Subset(raw, [0, 6632, 9864, len(raw)-1]), batch_size=4, num_workers=0)))
     if tuple(batch_data['actions'].shape) != (4, 10, 7):
         raise ValueError('Mixed-source batch shape mismatch')
     epochs = int(cfg.runner.max_epochs)
@@ -68,10 +69,10 @@ def main():
     a.output.mkdir(parents=True, exist_ok=True)
     OmegaConf.save(cfg, a.output / 'resolved_config.yaml')
     dump(a.output / 'dataset_manifest.json', raw.summary())
-    report = dict(state='passed', experiment='a60_prefix10', episodes=70, tasks=40,
-        training_windows=10619, unique_action_rows=10709,
-        source_windows={'author40': 6632, 'autonomous20': 3232, 'prefix10': 755},
-        prefix_action_rows=845, prefix_segments=10, total_original_trim=15,
+    report = dict(state='passed', experiment=experiment, episodes=len(raw.episodes), tasks=40,
+        training_windows=len(raw), unique_action_rows=expected_actions,
+        source_windows={'author40': 6632, 'autonomous20': 3232, raw.name: len(raw.clips)},
+        prefix_action_rows=bank_audit['unique_action_rows'], prefix_segments=len(raw.clips.segments), total_original_trim=15,
         prefix_padding=0, parent_instructions_only=True, a60_recipe_parity=parity,
         bank_audit=bank_audit, epoch_plan=plan.describe(), epochs=epochs,
         updates=epochs * plan.updates_per_epoch, all_50_epoch_permutations_checked=True,

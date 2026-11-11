@@ -14,7 +14,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from subtask_training.fetch import dump, download, session, sha256
-from .spec import ACTION_ROWS, HERE, SEGMENTS, WINDOWS, records, selection, selection_sha
+from .spec import records
+from . import spec as default_spec
 
 
 def jsonl(path, rows):
@@ -22,10 +23,10 @@ def jsonl(path, rows):
     path.write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in rows))
 
 
-def acquire(cache):
+def acquire(cache, *, spec_module=default_spec):
     """Download fixed HF blobs and verify their published Git/LFS hashes."""
     from huggingface_hub import HfApi
-    spec = selection()
+    spec = spec_module.selection()
     paths = {r['source_parquet'] for r in spec['segments']}
     for r in spec['segments']:
         root = r['source_parquet'].split('/data/')[0]
@@ -62,8 +63,11 @@ def acquire(cache):
     return hashes
 
 
-def materialize(cache, output, source_hashes):
-    spec = selection()
+def materialize(cache, output, source_hashes, *, spec_module=default_spec):
+    spec = spec_module.selection()
+    SEGMENTS, ACTION_ROWS, WINDOWS = spec_module.SEGMENTS, spec_module.ACTION_ROWS, spec_module.WINDOWS
+    HERE, selection_sha = spec_module.HERE, spec_module.selection_sha
+    policy = getattr(spec_module, 'POLICY', 'vla_prefix10_tail15_v1')
     dest = output / 'segmented'
     if dest.exists():
         raise FileExistsError('Use a new output; preserve existing datasets')
@@ -148,16 +152,16 @@ def materialize(cache, output, source_hashes):
     jsonl(dest / 'meta/tasks.jsonl', [dict(task_index=i, task=s) for s, i in tasks.items()])
     shutil.copy2(HERE / 'selection.json', dest / 'meta/selection.json')
     source_info = json.loads((group / 'meta/info.json').read_text())
-    source_info.update(total_episodes=10, total_frames=845, total_tasks=10, total_chunks=1,
-                       total_videos=0, splits={'train': '0:10'}, chunks_size=1000,
+    source_info.update(total_episodes=SEGMENTS, total_frames=ACTION_ROWS, total_tasks=len(tasks), total_chunks=1,
+                       total_videos=0, splits={'train': f'0:{SEGMENTS}'}, chunks_size=1000,
                        data_path='data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet',
                        native_control_hz=20, training_horizon=10,
                        training_window_policy='must_use_windows_jsonl_full_real_only')
     dump(dest / 'meta/info.json', source_info)
     dump(dest / 'source_identity.json', dict(revision=spec['source_revision'], files=source_hashes, checks=checks))
-    dump(dest / 'build_state.json', dict(state='complete', policy='vla_prefix10_tail15_v1',
-        selection_sha256=selection_sha(), segments=10, tasks=10, unique_action_rows=845,
-        training_windows=755, horizon=10, training_start_stride=1,
+    dump(dest / 'build_state.json', dict(state='complete', policy=policy,
+        selection_sha256=selection_sha(), segments=SEGMENTS, tasks=len(tasks), unique_action_rows=ACTION_ROWS,
+        training_windows=WINDOWS, horizon=10, training_start_stride=1,
         padded_action_positions=0, total_original_trim=15, additional_source_trim=5,
         source_action_reconversion=False, model_training_performed=False, all_train=True,
         file_sha256=hashes))

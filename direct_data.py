@@ -124,6 +124,9 @@ class DirectEpisodes:
 
 
 def build_raw(sources,horizon=10):
+    if any(s.get('kind')=='vla_prefix4_tail15' for s in sources):
+        from prefix4_training.dataset import FourPrefixEpisodes
+        return FourPrefixEpisodes(sources,horizon=horizon)
     if any(s.get('kind')=='vla_prefix10_tail15' for s in sources):
         from prefix_training.dataset import PrefixEpisodes
         return PrefixEpisodes(sources,horizon=horizon)

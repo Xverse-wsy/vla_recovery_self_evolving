@@ -12,8 +12,8 @@ from .dataset import PrefixBank
 from .spec import records
 
 
-def validate(root, source_cache=None, norm_stats=None, write_report=True):
-    ds = PrefixBank(root)
+def validate(root, source_cache=None, norm_stats=None, write_report=True, *, bank_class=PrefixBank):
+    ds = bank_class(root)
     pixels = 0
     probes = []
     for m in ds.segments.values():
@@ -59,8 +59,10 @@ def validate(root, source_cache=None, norm_stats=None, write_report=True):
             wrist_image=np.stack([s['wrist_image'] for s in samples]),
             state=np.stack([s['state'] for s in samples]),
             actions=np.stack([s['actions'] for s in samples]), normalized_actions=norm)
-    report = dict(state='passed', segments=10, tasks=10, unique_action_rows=845,
-        training_windows=755, independently_checked_windows=len(ds),
+    report = dict(state='passed', segments=len(ds.segments),
+        tasks=len({m['task_instruction'] for m in ds.segments.values()}),
+        unique_action_rows=sum(m['action_count'] for m in ds.segments.values()),
+        training_windows=len(ds), independently_checked_windows=len(ds),
         decoded_original_rgb_images=pixels, instructions_exactly_match_parent=True,
         original_source_training_columns_exact=bool(source_cache),
         total_original_trim=15, additional_source_trim=5, intermediate_tail_padding=0,

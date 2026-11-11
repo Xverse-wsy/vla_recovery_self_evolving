@@ -1,0 +1,20 @@
+defaults:
+  - a60
+  - _self_
+
+data:
+  sources:
+    - name: author40
+      path: ${paths.author40}
+      episodes_file: episodes.json
+      episodes: 40
+    - name: autonomous20
+      path: ${paths.autonomous20}
+      episodes: 20
+    - name: prefix4
+      kind: vla_prefix4_tail15
+      path: ${oc.env:PI05_PREFIX4_DIR,${oc.env:PI05_ROOT}/dataset_subsets/pi05_prefix4_tail15_20261111/segmented}
+      episodes: 4
+runner:
+  logger:
+    experiment_name: author40_autonomous20_prefix4_tail15_epoch50

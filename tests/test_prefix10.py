@@ -133,3 +133,65 @@ def test_a60_recipe_and_smoke_cover_every_source(monkeypatch):
     cfg.actor.model.num_steps = 3
     with pytest.raises(ValueError, match='differs from A60'):
         audit_recipe(cfg, base)
+
+
+@pytest.fixture
+def four_bank(sources, tmp_path):
+    from prefix4_training import spec
+    cache, hashes = sources
+    return materialize(cache, tmp_path / 'four', hashes, spec_module=spec), cache
+
+
+def test_four_selection_removes_six_without_restoring_any_rows(four_bank, bank):
+    from prefix4_training.dataset import FourPrefixBank
+    root, _ = four_bank
+    four, ten = FourPrefixBank(root), PrefixBank(bank[0])
+    assert len(four) == 444
+    expected = {'prefix_libero_goal_09': 176, 'prefix_libero_object_09': 133,
+                'prefix_libero_spatial_01': 61, 'prefix_libero_spatial_06': 110}
+    assert {sid: m['action_count'] for sid, m in four.segments.items()} == expected
+    assert len(set(ten.segments) - set(four.segments)) == 6
+    assert len(list((root / 'data').rglob('*.parquet'))) == 4
+    for sid, m in four.segments.items():
+        old = ten.segments[sid]
+        assert m['retained_parent_action_rows'] == old['retained_parent_action_rows']
+        current = pq.read_table(root / m['parquet'])
+        previous = pq.read_table(bank[0] / old['parquet'])
+        for col in ('image', 'wrist_image', 'state', 'actions', 'timestamp'):
+            assert current[col].equals(previous[col])
+        ws = [w for w in four.windows if w['segment_id'] == sid]
+        assert [w['start'] for w in ws] == list(range(m['action_count'] - 9))
+        assert all(w['real_steps'] == 10 and w['repeated_steps'] == 0 for w in ws)
+    spatial = four.segments['prefix_libero_spatial_01']
+    assert spatial['action_rows_half_open'] == [0, 61]
+    assert max(w['parent_action_rows_half_open'][1] for w in four.windows
+               if w['segment_id'] == spatial['segment_id']) == 61
+
+
+def test_four_and_ten_banks_cannot_be_silently_interchanged(four_bank, bank):
+    from prefix4_training.dataset import FourPrefixBank
+    with pytest.raises(ValueError, match='Wrong prefix dataset'):
+        FourPrefixBank(bank[0])
+    with pytest.raises(ValueError, match='Wrong prefix dataset'):
+        PrefixBank(four_bank[0])
+
+
+def test_four_does_not_accept_action_padding(four_bank):
+    from prefix4_training.dataset import FourPrefixBank
+    four = FourPrefixBank(four_bank[0])
+    four.windows[-1]['tail_policy'] = 'repeat_last'
+    four.windows[-1]['start'] += 1
+    with pytest.raises(ValueError, match='Invalid window'):
+        four[len(four) - 1]
+
+
+def test_four_recipe_keeps_a60_model_and_full_fifty_epochs(monkeypatch):
+    monkeypatch.setenv('PI05_ROOT', '/tmp/prefix4_recipe')
+    cfg, base = load_config('a60_prefix4'), load_config('a60')
+    assert audit_recipe(cfg, base)['data_scope_is_only_recipe_difference']
+    assert cfg.runner.max_epochs == 50 and cfg.actor.global_batch_size == 100
+    assert cfg.actor.model.openpi.action_horizon == 10
+    assert cfg.data.sources[-1].kind == 'vla_prefix4_tail15'
+    assert cfg.data.sources[-1].episodes == 4
+    indices = smoke_indices(10308, 9864, 6632)
+    assert {0, 6631, 6632, 9863, 9864, 10307} <= set(indices)

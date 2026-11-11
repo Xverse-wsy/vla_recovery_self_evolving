@@ -5,19 +5,24 @@ from pathlib import Path
 
 from direct_data import DirectEpisodes
 from subtask_training.dataset import SubtaskDataset
-from .spec import ACTION_ROWS, SEGMENTS, TOTAL_ACTION_ROWS, TOTAL_WINDOWS, WINDOWS, selection, selection_sha
+from . import spec as default_spec
 
 
 class PrefixBank(SubtaskDataset):
+    spec_module = default_spec
+
     def __init__(self, root):
         super().__init__(root)
+        spec = self.spec_module
+        SEGMENTS, ACTION_ROWS, WINDOWS = spec.SEGMENTS, spec.ACTION_ROWS, spec.WINDOWS
+        selection, selection_sha = spec.selection, spec.selection_sha
         report = json.loads((self.root / 'build_state.json').read_text())
-        if (report.get('policy') != 'vla_prefix10_tail15_v1'
+        if (report.get('policy') != getattr(spec, 'POLICY', 'vla_prefix10_tail15_v1')
                 or report.get('selection_sha256') != selection_sha()
                 or (report['segments'], report['unique_action_rows'], len(self)) != (SEGMENTS, ACTION_ROWS, WINDOWS)
                 or report['horizon'] != 10 or report['total_original_trim'] != 15
                 or report['additional_source_trim'] != 5 or report['padded_action_positions'] != 0):
-            raise ValueError('Wrong prefix dataset: expected fixed10, physical total trim15, 845 rows/755 windows')
+            raise ValueError(f'Wrong prefix dataset: expected fixed{SEGMENTS}, physical total trim15, {ACTION_ROWS} rows/{WINDOWS} windows')
         if hashlib.sha256((self.root / 'meta/selection.json').read_bytes()).hexdigest() != selection_sha():
             raise ValueError('Prefix selection checksum mismatch')
         expected = {r['segment_id']: r for r in selection()['segments']}
@@ -48,20 +53,22 @@ class PrefixBank(SubtaskDataset):
 
 
 class PrefixEpisodes:
-    def __init__(self, sources, horizon=10):
+    def __init__(self, sources, horizon=10, *, kind='vla_prefix10_tail15', bank_class=PrefixBank,
+                 segment_count=10, dataset_policy='a60_plus_prefix10_tail15_v1'):
         if horizon != 10:
             raise ValueError('Fixed prefix bank requires H10')
-        additions = [s for s in sources if s.get('kind') == 'vla_prefix10_tail15']
-        baseline = [s for s in sources if s.get('kind') != 'vla_prefix10_tail15']
+        additions = [s for s in sources if s.get('kind') == kind]
+        baseline = [s for s in sources if s.get('kind') != kind]
         if (len(additions) != 1 or len(baseline) != 2
                 or {s['name']: int(s['episodes']) for s in baseline} != {'author40': 40, 'autonomous20': 20}
-                or int(additions[0]['episodes']) != 10):
-            raise ValueError('Expected original expert40 + autonomous20 + prefix10')
+                or int(additions[0]['episodes']) != segment_count):
+            raise ValueError(f'Expected original expert40 + autonomous20 + prefix{segment_count}')
         self.base = DirectEpisodes(baseline, horizon=horizon)
         if len(self.base) != 9864 or len(self.base.episodes) != 60 or len(self.base.tasks) != 40:
             raise ValueError('Wrong original A60 data: expected 9864 windows and all 40 tasks')
         self.root = Path(additions[0]['path']).expanduser().resolve()
-        self.clips = PrefixBank(self.root)
+        self.clips = bank_class(self.root)
+        self.dataset_policy = dataset_policy
         auto_tasks = {r['task'] for r in self.base.episodes if r['source'] == 'autonomous20'}
         if any(m['task_instruction'] in auto_tasks for m in self.clips.segments.values()):
             raise ValueError('Selected prefix tasks must not overlap autonomous20 tasks')
@@ -94,14 +101,14 @@ class PrefixEpisodes:
 
     def summary(self):
         base = self.base.summary()
-        counts = dict(base['source_episodes']); counts[self.name] = 10
-        frames = dict(base['source_frames']); frames[self.name] = 845
-        return dict(base, episodes=70, frames=len(self), tasks=len(self.tasks),
+        counts = dict(base['source_episodes']); counts[self.name] = len(self.clips.segments)
+        frames = dict(base['source_frames']); frames[self.name] = sum(m['action_count'] for m in self.clips.segments.values())
+        return dict(base, episodes=len(self.episodes), frames=len(self), tasks=len(self.tasks),
             source_episodes=counts, source_frames=frames, episodes_index=[
                 {k: v for k, v in m.items() if k not in ('state', 'actions', 'row_group_ends')}
-                for m in self.episodes], training_windows=TOTAL_WINDOWS,
-            unique_action_rows=TOTAL_ACTION_ROWS, prefix_windows=755,
-            prefix_index_sha256=self.identity, dataset_policy='a60_plus_prefix10_tail15_v1')
+                for m in self.episodes], training_windows=len(self),
+            unique_action_rows=sum(frames.values()), prefix_windows=len(self.clips),
+            prefix_index_sha256=self.identity, dataset_policy=self.dataset_policy)
 
     def assert_unchanged(self):
         self.base.assert_unchanged()

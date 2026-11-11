@@ -22,7 +22,7 @@ from training_runtime import RetainingRunner, TrainingWorker, write_json
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--experiment', required=True, choices=['a60', 'b80', 'a60_subtasks22', 'a60_prefix10'])
+    ap.add_argument('--experiment', required=True, choices=['a60', 'b80', 'a60_subtasks22', 'a60_prefix10', 'a60_prefix4'])
     ap.add_argument('--output', required=True, type=Path)
     ap.add_argument('--gpus', required=True, help='Allocated physical GPUs, e.g. 1,3')
     ap.add_argument('--smoke', action='store_true')
@@ -46,7 +46,7 @@ def main():
     if (output / 'status.json').exists() and not args.resume:
         raise FileExistsError(f'Use a fresh output directory: {output}')
     cfg = load_config(args.experiment)
-    if args.experiment in ('a60_subtasks22', 'a60_prefix10'):
+    if args.experiment in ('a60_subtasks22', 'a60_prefix10', 'a60_prefix4'):
         from subtask_training.training_data import audit_recipe
         write_json(output/'a60_recipe_parity.json',audit_recipe(cfg,load_config('a60')))
     if args.micro_batch_size is not None:
@@ -73,7 +73,7 @@ def main():
     cfg.runner.logger.log_path = str(output)
     OmegaConf.update(cfg, 'validation_world_size', len(gpus), force_add=True)
     raw = build_raw(OmegaConf.to_container(cfg.data.sources, resolve=True))
-    expected_episodes = {'a60':60,'b80':80,'a60_subtasks22':82,'a60_prefix10':70}[args.experiment]
+    expected_episodes = {'a60':60,'b80':80,'a60_subtasks22':82,'a60_prefix10':70,'a60_prefix4':64}[args.experiment]
     assert len(raw.episodes) == expected_episodes
     write_json(output / 'dataset_manifest.json', raw.summary())
     if args.smoke:
@@ -81,12 +81,12 @@ def main():
         # a complete epoch boundary, and every selected data source.
         indices = sorted(set([0, 6631, 6632, 9863, len(raw) - 1] +
                              [int(i * (len(raw) - 1) / 13) for i in range(14)]))[:15]
-        if args.experiment in ('a60_subtasks22', 'a60_prefix10'):
+        if args.experiment in ('a60_subtasks22', 'a60_prefix10', 'a60_prefix4'):
             from subtask_training.training_data import smoke_indices
             indices=smoke_indices(len(raw),len(raw.base),raw.base.source_frames['author40'])
         if args.experiment == 'b80' and not any(i >= 9864 for i in indices):
             raise AssertionError('Recovery examples absent from smoke')
-        if args.experiment in ('a60_subtasks22', 'a60_prefix10') and not any(i>=len(raw.base) for i in indices):
+        if args.experiment in ('a60_subtasks22', 'a60_prefix10', 'a60_prefix4') and not any(i>=len(raw.base) for i in indices):
             raise AssertionError('Added fragment examples absent from smoke')
         cfg.data.validation_indices = indices
         cfg.actor.global_batch_size = len(gpus) * cfg.actor.micro_batch_size * 3

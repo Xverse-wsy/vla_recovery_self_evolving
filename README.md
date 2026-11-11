@@ -1,10 +1,11 @@
 # π0.5训练与评测适配
 
-**当前新增方案：专家40＋自主成功20＋10条短VLA前缀**。
-入口：[README_PREFIX10.md](README_PREFIX10.md)，实验`a60_prefix10`。
-前缀累计物理裁去末15步，845个真实动作/755个无补齐窗口；总计10619窗口，
+**当前新增方案：专家40＋自主成功20＋4条VLA前缀**。
+入口：[README_PREFIX4.md](README_PREFIX4.md)，实验`a60_prefix4`。
+从原10段只保留Goal/09、Object/09、Spatial/01、Spatial/06；不补回任何已删帧。
+前缀累计物理裁去末15步，480个真实动作/444个无补齐窗口；总计10308窗口，
 完整50epoch，直接继承A60全参数SFT。下载后的前缀不再裁剪。
-下面的22段实验、方案1及A60/B80均为独立入口，不混合运行。
+旧10段入口[README_PREFIX10.md](README_PREFIX10.md)保留溯源。下面的22段实验、方案1及A60/B80均为独立入口，不混合运行。
 
 **历史独立实验：A60＋原始22个可靠子片段**。入口：[README_SUBTASKS22.md](README_SUBTASKS22.md)。
 专家40＋自主成功20＋22段，共11058个密集窗口，完整50epoch，直接继承A60全参数SFT配方。
@@ -13,7 +14,7 @@
 真实10次更新后从第2步恢复，最终权重/优化器/输入计数一致；完整50轮未启动。
 实际验证范围和短测命令见上述新实验文档。原方案1和A60/B80入口保留如下。
 
-Agent先读 [AGENTS.md](AGENTS.md)。以下为原方案1片段Stage1，操作入口是[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。它与`a60_subtasks22`和当前`a60_prefix10`的数据范围、入口不同；当前10前缀方案按[README_PREFIX10.md](README_PREFIX10.md)运行。
+Agent先读 [AGENTS.md](AGENTS.md)。以下为原方案1片段Stage1，操作入口是[README_STAGE1.md](pi05_recovery_pair/README_STAGE1.md)。它与`a60_subtasks22`和当前`a60_prefix4`的数据范围、入口不同；当前4前缀方案按[README_PREFIX4.md](README_PREFIX4.md)运行。
 
 当前方案1使用原始专家40、自主成功20，以及新恢复成功/失败父轨迹中的VLA推进片段；严格CAP匹配当前准入0。共13,407个逐帧窗口、13,767去重动作。VLM不冻结，使用原生H10×32 FM及A60优化器/调度；global128时完整50轮共5,250更新。VLA推进片段先去掉末10步，再仅保留完整真实窗口，不补齐。
 

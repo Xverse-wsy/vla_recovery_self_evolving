@@ -1,0 +1,127 @@
+{
+  "date": "2026-11-11",
+  "state": "passed",
+  "tests_passed": 42,
+  "prefix_bank": {
+    "state": "passed",
+    "segments": 4,
+    "tasks": 4,
+    "unique_action_rows": 480,
+    "training_windows": 444,
+    "independently_checked_windows": 444,
+    "decoded_original_rgb_images": 960,
+    "instructions_exactly_match_parent": true,
+    "original_source_training_columns_exact": true,
+    "total_original_trim": 15,
+    "additional_source_trim": 5,
+    "intermediate_tail_padding": 0,
+    "physical_cropping_done_once": true,
+    "dense_stride": 1,
+    "horizon": 10,
+    "native_probe_samples": 8,
+    "normalization_sha256": "dae37d79a22108af83df9189c6710a3ec8e077d65b28e34bdf1da724e5ae30f1",
+    "model_training_performed": false,
+    "native_model_forward_tested": false
+  },
+  "selection_change": {
+    "state": "passed",
+    "retained": [
+      {
+        "segment_id": "prefix_libero_goal_09",
+        "rows": 176,
+        "all_training_columns_identical_to_previous_tail15": true,
+        "restored_rows": 0
+      },
+      {
+        "segment_id": "prefix_libero_object_09",
+        "rows": 133,
+        "all_training_columns_identical_to_previous_tail15": true,
+        "restored_rows": 0
+      },
+      {
+        "segment_id": "prefix_libero_spatial_01",
+        "rows": 61,
+        "all_training_columns_identical_to_previous_tail15": true,
+        "restored_rows": 0
+      },
+      {
+        "segment_id": "prefix_libero_spatial_06",
+        "rows": 110,
+        "all_training_columns_identical_to_previous_tail15": true,
+        "restored_rows": 0
+      }
+    ],
+    "removed_from_current_bank": [
+      "prefix_libero_10_00",
+      "prefix_libero_10_08",
+      "prefix_libero_10_09",
+      "prefix_libero_goal_04",
+      "prefix_libero_goal_05",
+      "prefix_libero_spatial_08"
+    ],
+    "current_segments": 4,
+    "current_rows": 480,
+    "current_windows": 444,
+    "old_data_modified": false,
+    "restored_rows": 0
+  },
+  "full_dataset": {
+    "episodes": 64,
+    "tasks": 40,
+    "training_windows": 10308,
+    "unique_action_rows": 10344
+  },
+  "a60_recipe_parity": {
+    "state": "passed",
+    "model_optimizer_scheduler_runtime_exactly_equal_to_a60": true,
+    "data_scope_is_only_recipe_difference": true,
+    "epochs": 50,
+    "default_global_batch": 100,
+    "flow_steps": 5
+  },
+  "single_rank_50_epoch_sampling": {
+    "samples_per_epoch": 10308,
+    "world_size": 1,
+    "micro_batch_size": 2,
+    "accumulation": 50,
+    "batches_per_rank": 5154,
+    "updates_per_epoch": 104,
+    "last_update_samples": 8,
+    "drop_last": false,
+    "real_sample_duplicates": false,
+    "zero_weight_sync_padding": false,
+    "updates_cross_epochs": false
+  },
+  "sixteen_rank_50_epoch_sampling": {
+    "samples_per_epoch": 10308,
+    "world_size": 16,
+    "micro_batch_size": 2,
+    "accumulation": 4,
+    "batches_per_rank": 323,
+    "updates_per_epoch": 81,
+    "last_update_samples": 68,
+    "drop_last": false,
+    "real_sample_duplicates": false,
+    "zero_weight_sync_padding": true,
+    "updates_cross_epochs": false
+  },
+  "all_50_epoch_permutations_checked": true,
+  "review_videos_fully_decoded": true,
+  "gpu_training_performed": false,
+  "native_model_forward_tested_for_this_release": false,
+  "prior_prefix10_release": "ffb6d8490ee5c2711d9b5360eefc0c97ef04e82a",
+  "hf_upload": {
+    "state": "verified",
+    "repo": "wsy-w1k/rollout",
+    "prefix": "pi05_prefix4_tail15_20261111",
+    "revision": "1d3e54a94fc378a70620264a020c38d4c9c1fef0",
+    "files": 35,
+    "bytes": 73401853,
+    "parquet_files": 4,
+    "segments": 4,
+    "unique_action_rows": 480,
+    "prefix_windows": 444,
+    "full_training_windows": 10308,
+    "all_remote_object_hashes_match": true
+  }
+}

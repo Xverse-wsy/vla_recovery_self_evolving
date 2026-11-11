@@ -8,7 +8,7 @@ from subtask_training.fetch import dump
 from .spec import PREFIX
 
 
-def main():
+def main(*, prefix=PREFIX, expected_counts=(10, 845, 755), expected_total=10619):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--verify-revision')
@@ -17,10 +17,10 @@ def main():
     build = json.loads((root / 'segmented/build_state.json').read_text())
     validation = json.loads((root / 'segmented/validation.json').read_text())
     preflight = json.loads((root / 'preflight_default/preflight.json').read_text())
-    if ((build['segments'], build['unique_action_rows'], build['training_windows']) != (10, 845, 755)
+    if ((build['segments'], build['unique_action_rows'], build['training_windows']) != expected_counts
             or validation['state'] != 'passed' or preflight['state'] != 'passed'
-            or preflight['training_windows'] != 10619):
-        raise ValueError('Only the accepted ten physically-trim15 prefixes can be published')
+            or preflight['training_windows'] != expected_total):
+        raise ValueError('Only the accepted selected physically-trim15 prefixes can be published')
     patterns = ['segmented/**', 'assets/**', 'review_videos/**', 'README.md',
                 'preflight_default/preflight.json', 'preflight_16rank/preflight.json']
     files = [p for folder in ('segmented', 'assets', 'review_videos')
@@ -32,19 +32,19 @@ def main():
         revision = a.verify_revision
     else:
         commit = api.upload_folder(repo_id='wsy-w1k/rollout', repo_type='dataset',
-            folder_path=root, path_in_repo=PREFIX, allow_patterns=patterns,
-            commit_message='Add ten short VLA prefixes with physical tail15 trim and A60 training acceptance')
+            folder_path=root, path_in_repo=prefix, allow_patterns=patterns,
+            commit_message=f'Add {expected_counts[0]} selected VLA prefixes with unchanged physical tail15 crop')
         revision = commit.oid
-        dump(root / 'hf_upload_commit.json', dict(repo='wsy-w1k/rollout', prefix=PREFIX, revision=revision))
+        dump(root / 'hf_upload_commit.json', dict(repo='wsy-w1k/rollout', prefix=prefix, revision=revision))
     remote = {f.path: f for f in api.list_repo_tree('wsy-w1k/rollout', repo_type='dataset',
-        revision=revision, path_in_repo=PREFIX, recursive=True) if isinstance(f, RepoFile)}
-    if set(remote) != {PREFIX + '/' + p.relative_to(root).as_posix() for p in files}:
+        revision=revision, path_in_repo=prefix, recursive=True) if isinstance(f, RepoFile)}
+    if set(remote) != {prefix + '/' + p.relative_to(root).as_posix() for p in files}:
         raise ValueError('Missing or extra remote payload')
     inventory = []
     for p in files:
         data = p.read_bytes()
         rel = p.relative_to(root).as_posix()
-        f = remote[PREFIX + '/' + rel]
+        f = remote[prefix + '/' + rel]
         digest = hashlib.sha256(data).hexdigest()
         if f.size != len(data):
             raise ValueError('Remote size mismatch: ' + rel)
@@ -55,10 +55,10 @@ def main():
         if not okay:
             raise ValueError('Remote Git/LFS hash mismatch: ' + rel)
         inventory.append(dict(path=rel, bytes=len(data), sha256=digest))
-    result = dict(state='verified', repo='wsy-w1k/rollout', prefix=PREFIX, revision=revision,
+    result = dict(state='verified', repo='wsy-w1k/rollout', prefix=prefix, revision=revision,
         files=len(files), bytes=sum(p.stat().st_size for p in files),
-        parquet_files=sum(p.suffix == '.parquet' for p in files), segments=10,
-        unique_action_rows=845, prefix_windows=755, full_training_windows=10619,
+        parquet_files=sum(p.suffix == '.parquet' for p in files), segments=expected_counts[0],
+        unique_action_rows=expected_counts[1], prefix_windows=expected_counts[2], full_training_windows=expected_total,
         all_remote_object_hashes_match=True, inventory=inventory)
     dump(root / 'hf_verification.json', result)
     print(json.dumps({k: v for k, v in result.items() if k != 'inventory'}, indent=2))
