@@ -1,5 +1,9 @@
 # 修改参数与启动实验
 
+当前“专家40＋自主成功20＋10条短VLA前缀”使用独立入口
+[README_PREFIX10.md](README_PREFIX10.md)，实验`a60_prefix10`。
+本页下方A/B总入口不会启动这套新方案。
+
 先按 ENVIRONMENT.md 安装两个 Python 3.12 环境，准备源码、权重、数据和 LIBERO
 资源。下面的正式命令会启动长训/完整评测，请先执行 `plan` 检查配置。
 

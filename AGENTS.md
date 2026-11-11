@@ -1,5 +1,24 @@
 # Agent接手入口
 
+## 当前新实验：A60＋10条短VLA前缀（2026-11-11）
+
+先读 [README_PREFIX10.md](README_PREFIX10.md)。实验`a60_prefix10`：专家40＋原自主20＋
+10条前缀，共70条、10619窗口、10709真实动作；前缀单独845行/755窗口。
+每个前缀任务不与自主20重合；Spatial3/Object1/Goal3/LIBERO-10 3，每任务一条。
+相对原推进片段累计物理删除末15动作及执行前观测；源segmented已trim10，构建只再删5。
+本次HF Parquet已经裁完，读取时不再裁，只取0..n-10完整H10窗口，前缀禁止补齐。
+专家40/自主20维持原A60尾部规则；prompt使用完整父任务instruction。
+独立新kind=`vla_prefix10_tail15`，不加入22段/CAP/旧长前缀，不改变旧实验行为。
+配置直接继承A60，启动逐字段检查仅数据/名称不同；全参数原生FM、VLM不冻结、完整50epoch。
+用户授权HF上传、代码修改/测试及GitHub推送；不启动正式50轮。
+本地38项测试、755窗口与1690原RGB、原列精确比较、单/16rank完整50轮CPU计划通过。
+A800连接已恢复，现有16份来源SHA256与固定HF版一致；独立目录的38项测试、完整数据及单/16rank计划、20样本原生变换已通过。
+GPU0短测试已在模型加载前被显存保护拦下：各卡仅14~19GiB空闲，不够34+8+1GiB条件。
+没有新方案GPU更新，原有GPU进程均仍在；待有足够资源补跑短测，不强行启动。
+CPU/原生变换不等于新方案GPU更新通过；实际范围见`prefix_training/validation_20261111.json`。
+数据/视频/权重不入Git。HF新目录`pi05_prefix10_tail15_20261111`。
+新建库：`python -m prefix_training.build`；CPU：`python -m prefix_training.plan --output /new/report`。
+
 ## 新增实验：A60＋原始22个子片段（2026-11-10）
 
 先读 [README_SUBTASKS22.md](README_SUBTASKS22.md)。用户改回原22段，新增46段不纳入。

@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "hf_repo": "wsy-w1k/rollout",
+  "source_revision": "aced94d551789d25a7a66af329f9bdcf1b232c2c",
+  "selection_rule": "tasks absent from autonomous20; shortest existing prefix per task; at most three shortest tasks per suite; then five more tail rows removed",
+  "horizon": 10,
+  "training_stride": 1,
+  "tail_policy": "full_real_only",
+  "segments": [
+    {
+      "segment_id": "prefix_libero_10_00",
+      "suite": "libero_10",
+      "task_id": 0,
+      "trial_id": 0,
+      "task_instruction": "put both the alphabet soup and the tomato sauce in the basket",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000011.parquet",
+      "source_segment_episode_index": 11,
+      "source_parent_episode_index": 1,
+      "canonical_task_index": 5,
+      "source_parent_rows_after_trim10": [
+        0,
+        69
+      ],
+      "untrimmed_parent_range": [
+        0,
+        79
+      ],
+      "retained_parent_action_rows": [
+        0,
+        64
+      ],
+      "retained_segment_rows": [
+        0,
+        64
+      ],
+      "action_count": 64,
+      "trainable_window_count": 55,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_10_08",
+      "suite": "libero_10",
+      "task_id": 8,
+      "trial_id": 7,
+      "task_instruction": "put both moka pots on the stove",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000072.parquet",
+      "source_segment_episode_index": 72,
+      "source_parent_episode_index": 8,
+      "canonical_task_index": 6,
+      "source_parent_rows_after_trim10": [
+        0,
+        110
+      ],
+      "untrimmed_parent_range": [
+        0,
+        120
+      ],
+      "retained_parent_action_rows": [
+        0,
+        105
+      ],
+      "retained_segment_rows": [
+        0,
+        105
+      ],
+      "action_count": 105,
+      "trainable_window_count": 96,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_10_09",
+      "suite": "libero_10",
+      "task_id": 9,
+      "trial_id": 3,
+      "task_instruction": "put the yellow and white mug in the microwave and close it",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000126.parquet",
+      "source_segment_episode_index": 126,
+      "source_parent_episode_index": 12,
+      "canonical_task_index": 2,
+      "source_parent_rows_after_trim10": [
+        0,
+        82
+      ],
+      "untrimmed_parent_range": [
+        0,
+        92
+      ],
+      "retained_parent_action_rows": [
+        0,
+        77
+      ],
+      "retained_segment_rows": [
+        0,
+        77
+      ],
+      "action_count": 77,
+      "trainable_window_count": 68,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_goal_04",
+      "suite": "libero_goal",
+      "task_id": 4,
+      "trial_id": 6,
+      "task_instruction": "put the bowl on top of the cabinet",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000037.parquet",
+      "source_segment_episode_index": 37,
+      "source_parent_episode_index": 4,
+      "canonical_task_index": 18,
+      "source_parent_rows_after_trim10": [
+        0,
+        38
+      ],
+      "untrimmed_parent_range": [
+        0,
+        48
+      ],
+      "retained_parent_action_rows": [
+        0,
+        33
+      ],
+      "retained_segment_rows": [
+        0,
+        33
+      ],
+      "action_count": 33,
+      "trainable_window_count": 24,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_goal_05",
+      "suite": "libero_goal",
+      "task_id": 5,
+      "trial_id": 1,
+      "task_instruction": "push the plate to the front of the stove",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000040.parquet",
+      "source_segment_episode_index": 40,
+      "source_parent_episode_index": 3,
+      "canonical_task_index": 15,
+      "source_parent_rows_after_trim10": [
+        0,
+        41
+      ],
+      "untrimmed_parent_range": [
+        0,
+        51
+      ],
+      "retained_parent_action_rows": [
+        0,
+        36
+      ],
+      "retained_segment_rows": [
+        0,
+        36
+      ],
+      "action_count": 36,
+      "trainable_window_count": 27,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_goal_09",
+      "suite": "libero_goal",
+      "task_id": 9,
+      "trial_id": 5,
+      "task_instruction": "put the wine bottle on the rack",
+      "source_group": "recovery_failure20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_failure20_segmented/data/chunk-000/episode_000000.parquet",
+      "source_segment_episode_index": 0,
+      "source_parent_episode_index": 0,
+      "canonical_task_index": 11,
+      "source_parent_rows_after_trim10": [
+        0,
+        181
+      ],
+      "untrimmed_parent_range": [
+        0,
+        191
+      ],
+      "retained_parent_action_rows": [
+        0,
+        176
+      ],
+      "retained_segment_rows": [
+        0,
+        176
+      ],
+      "action_count": 176,
+      "trainable_window_count": 167,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_object_09",
+      "suite": "libero_object",
+      "task_id": 9,
+      "trial_id": 4,
+      "task_instruction": "pick up the orange juice and place it in the basket",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000108.parquet",
+      "source_segment_episode_index": 108,
+      "source_parent_episode_index": 18,
+      "canonical_task_index": 20,
+      "source_parent_rows_after_trim10": [
+        0,
+        138
+      ],
+      "untrimmed_parent_range": [
+        0,
+        148
+      ],
+      "retained_parent_action_rows": [
+        0,
+        133
+      ],
+      "retained_segment_rows": [
+        0,
+        133
+      ],
+      "action_count": 133,
+      "trainable_window_count": 124,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_spatial_01",
+      "suite": "libero_spatial",
+      "task_id": 1,
+      "trial_id": 8,
+      "task_instruction": "pick up the black bowl next to the ramekin and place it on the plate",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000072.parquet",
+      "source_segment_episode_index": 72,
+      "source_parent_episode_index": 11,
+      "canonical_task_index": 37,
+      "source_parent_rows_after_trim10": [
+        0,
+        66
+      ],
+      "untrimmed_parent_range": [
+        0,
+        76
+      ],
+      "retained_parent_action_rows": [
+        0,
+        61
+      ],
+      "retained_segment_rows": [
+        0,
+        61
+      ],
+      "action_count": 61,
+      "trainable_window_count": 52,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_spatial_06",
+      "suite": "libero_spatial",
+      "task_id": 6,
+      "trial_id": 0,
+      "task_instruction": "pick up the black bowl next to the cookie box and place it on the plate",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000062.parquet",
+      "source_segment_episode_index": 62,
+      "source_parent_episode_index": 9,
+      "canonical_task_index": 30,
+      "source_parent_rows_after_trim10": [
+        0,
+        115
+      ],
+      "untrimmed_parent_range": [
+        0,
+        125
+      ],
+      "retained_parent_action_rows": [
+        0,
+        110
+      ],
+      "retained_segment_rows": [
+        0,
+        110
+      ],
+      "action_count": 110,
+      "trainable_window_count": 101,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    },
+    {
+      "segment_id": "prefix_libero_spatial_08",
+      "suite": "libero_spatial",
+      "task_id": 8,
+      "trial_id": 1,
+      "task_instruction": "pick up the black bowl next to the plate and place it on the plate",
+      "source_group": "recovery_success20",
+      "source_parquet": "pi05_recovery_scheme1_20261102/recovery_success20_segmented/data/chunk-000/episode_000101.parquet",
+      "source_segment_episode_index": 101,
+      "source_parent_episode_index": 16,
+      "canonical_task_index": 36,
+      "source_parent_rows_after_trim10": [
+        0,
+        55
+      ],
+      "untrimmed_parent_range": [
+        0,
+        65
+      ],
+      "retained_parent_action_rows": [
+        0,
+        50
+      ],
+      "retained_segment_rows": [
+        0,
+        50
+      ],
+      "action_count": 50,
+      "trainable_window_count": 41,
+      "additional_source_trim": 5,
+      "total_original_trim": 15
+    }
+  ]
+}
