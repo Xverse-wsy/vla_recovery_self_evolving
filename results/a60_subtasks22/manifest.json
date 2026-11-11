@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "validation": {
+    "training_updates": 4350,
+    "episodes": 2000,
+    "videos": 2000,
+    "unique_episode_identities": true,
+    "aggregate_counts_match": true,
+    "initial_states_match_historical_references": true,
+    "video_metadata_allowlist_checked": 2000,
+    "video_frame_counts_checked": 2000,
+    "video_zip_crc_checked": true,
+    "all_video_frames_decoded": false,
+    "video_pixels": "simulation_camera_only_by_writer_source_inspection_and_24_representative_frames_from_8_episodes"
+  },
+  "files": {
+    "output/a60_subtasks22/README.md": {
+      "bytes": 1776,
+      "sha256": "e892ad2c1c3c479c818f9fe3cac52a93ee5e7c0c293c36e28debd013da8db396"
+    },
+    "output/a60_subtasks22/evaluation/episodes.jsonl": {
+      "bytes": 863962,
+      "sha256": "bf6646f3695f859a52c2a58465a487037e359b4a29ee363534b04979b751d544"
+    },
+    "output/a60_subtasks22/evaluation/videos.zip": {
+      "bytes": 258772246,
+      "sha256": "a2075e3c7d822782f9a0b0b3bfceadff3e4db835bbb43af0e3642982d5dbeabf"
+    },
+    "output/a60_subtasks22/training/metrics.jsonl": {
+      "bytes": 705111,
+      "sha256": "ad109aa000de97a44480a3056f4b089d939f0f75ce5beb80b3eb7fdc1c8b58cd"
+    },
+    "output/a60_subtasks22/training/status.json": {
+      "bytes": 364,
+      "sha256": "d5ae425cbb9fb74b5ed4636add983317028452dcd40b809c9b39a1088af52aa8"
+    },
+    "results/a60_subtasks22/README.md": {
+      "bytes": 3857,
+      "sha256": "7c2537a684222fd383df5fcbd14ff94e365868cc1eb1e2d1c22c0662cde15a3b"
+    },
+    "results/a60_subtasks22/comparison.json": {
+      "bytes": 2001,
+      "sha256": "55d44d58c19c6785ea83b2c2b660d61c3071198645909ffe99b4d1ad1e6a5f9e"
+    },
+    "results/a60_subtasks22/protocol.json": {
+      "bytes": 817,
+      "sha256": "cf2c9e8cf2c23b571564433e8053b5965c0da4bc92b1f62f0463cb20621c020d"
+    },
+    "results/a60_subtasks22/sanitization.json": {
+      "bytes": 698,
+      "sha256": "37e13995804e87377f763e18711ced2c6b417314d9e10a60ce91b6214770925c"
+    },
+    "results/a60_subtasks22/summary.json": {
+      "bytes": 502,
+      "sha256": "373d13085f126c014ba67a600d6ce92b3d18d1e34f43539c798520a1056b8bb3"
+    },
+    "results/a60_subtasks22/training.json": {
+      "bytes": 1544,
+      "sha256": "1f209a9f3d58350d72c6ab2b3c335e7aa04af47916e469ae5c6f1d298804efd5"
+    }
+  }
+}

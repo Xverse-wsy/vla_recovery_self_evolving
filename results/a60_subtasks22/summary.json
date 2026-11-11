@@ -1,0 +1,27 @@
+{
+  "episodes": 2000,
+  "successes": 1421,
+  "success_rate": 0.7105,
+  "suites": {
+    "libero_spatial": {
+      "episodes": 500,
+      "successes": 405,
+      "success_rate": 0.81
+    },
+    "libero_object": {
+      "episodes": 500,
+      "successes": 492,
+      "success_rate": 0.984
+    },
+    "libero_goal": {
+      "episodes": 500,
+      "successes": 411,
+      "success_rate": 0.822
+    },
+    "libero_10": {
+      "episodes": 500,
+      "successes": 113,
+      "success_rate": 0.226
+    }
+  }
+}

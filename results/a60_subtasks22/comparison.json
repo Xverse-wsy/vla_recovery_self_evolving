@@ -1,0 +1,85 @@
+{
+  "current_model": "a60_subtasks22",
+  "current_summary": {
+    "episodes": 2000,
+    "successes": 1421,
+    "success_rate": 0.7105,
+    "suites": {
+      "libero_spatial": {
+        "episodes": 500,
+        "successes": 405,
+        "success_rate": 0.81
+      },
+      "libero_object": {
+        "episodes": 500,
+        "successes": 492,
+        "success_rate": 0.984
+      },
+      "libero_goal": {
+        "episodes": 500,
+        "successes": 411,
+        "success_rate": 0.822
+      },
+      "libero_10": {
+        "episodes": 500,
+        "successes": 113,
+        "success_rate": 0.226
+      }
+    }
+  },
+  "fixed_historical_references": {
+    "baseline": {
+      "episodes": 2000,
+      "successes": 1484,
+      "success_rate": 0.742,
+      "flow_steps": 3,
+      "delta_successes": -63,
+      "delta_percentage_points": -3.15
+    },
+    "a60": {
+      "episodes": 2000,
+      "successes": 1519,
+      "success_rate": 0.7595,
+      "flow_steps": 3,
+      "delta_successes": -98,
+      "delta_percentage_points": -4.9
+    },
+    "b80": {
+      "episodes": 2000,
+      "successes": 1205,
+      "success_rate": 0.6025,
+      "flow_steps": 3,
+      "delta_successes": 216,
+      "delta_percentage_points": 10.8
+    },
+    "stage1": {
+      "episodes": 2000,
+      "successes": 1268,
+      "success_rate": 0.634,
+      "flow_steps": 3,
+      "delta_successes": 153,
+      "delta_percentage_points": 7.65
+    },
+    "stage1_scheme1": {
+      "episodes": 2000,
+      "successes": 1461,
+      "success_rate": 0.7305,
+      "flow_steps": 5,
+      "delta_successes": -40,
+      "delta_percentage_points": -2.0
+    }
+  },
+  "initial_state_hashes_match_all_references": true,
+  "controlled_comparison": false,
+  "limitations": [
+    "historical_weight_loading_differs",
+    "scheme1_flow_steps_differ",
+    "training_initial_state_overlap_unknown"
+  ],
+  "a60_suite_delta_percentage_points": {
+    "libero_spatial": -6.2,
+    "libero_object": 0.0,
+    "libero_goal": -3.4,
+    "libero_10": -10.0
+  }
+}
