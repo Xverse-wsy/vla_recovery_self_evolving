@@ -1,0 +1,56 @@
+{
+  "experiment": "a60_prefix4",
+  "initialization": "original_fewshot",
+  "full_model_trainable": true,
+  "epochs": 50,
+  "updates": 4050,
+  "global_batch": 128,
+  "windows": 10308,
+  "unique_real_frames": 10344,
+  "window_presentations": 515400,
+  "windows_by_source": {
+    "expert": 6632,
+    "autonomous_success": 3232,
+    "prefix4": 444
+  },
+  "complete_expert_episodes": 40,
+  "complete_autonomous_episodes": 20,
+  "prefix_segments": 4,
+  "prefix_real_frames": 480,
+  "prefix_tasks": [
+    "libero_goal/09",
+    "libero_object/09",
+    "libero_spatial/01",
+    "libero_spatial/06"
+  ],
+  "prefix_tail_policy": "full_real_h10_only",
+  "prefix_padding": 0,
+  "total_original_trim": 15,
+  "additional_runtime_trim": 0,
+  "retained_frames_unchanged_from_prefix10": true,
+  "prompt": "parent_complete_task_instruction",
+  "horizon": 10,
+  "model_action_dim": 32,
+  "environment_action_dim": 7,
+  "learning_rate": 5e-06,
+  "min_learning_rate": 5e-07,
+  "warmup_updates": 100,
+  "adam_betas": [
+    0.9,
+    0.95
+  ],
+  "adam_eps": 1e-08,
+  "weight_decay": 1e-10,
+  "gradient_clip": 1.0,
+  "all_train": true,
+  "validation_enabled": false,
+  "training_code_commit": "26facf25c4bbe8ab3722f206cdf7b2b9dde5b58c",
+  "final_metrics": {
+    "update": 4050,
+    "loss": 0.0012279846705496311,
+    "gradient_norm": 0.03476822376251221,
+    "learning_rate": 4.999999987376214e-07,
+    "samples_seen": 515400,
+    "epochs_completed": 50
+  }
+}

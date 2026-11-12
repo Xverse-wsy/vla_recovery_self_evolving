@@ -1,0 +1,14 @@
+{
+  "state": "complete",
+  "epochs": 50,
+  "updates": 4050,
+  "samples_seen": 515400,
+  "windows_per_epoch": 10308,
+  "updates_per_epoch": 81,
+  "tail_batch_size": 68,
+  "global_batch": 128,
+  "exact_epochs_verified": true,
+  "source_data_unchanged": true,
+  "base_checkpoint_unchanged": true,
+  "metric_update_numbering": "one_based_from_zero_based_event_step"
+}

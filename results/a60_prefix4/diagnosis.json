@@ -1,0 +1,311 @@
+{
+  "checks": {
+    "actor_configuration_exactly_matches_historical_a60": true,
+    "initial_parameter_digests_match": true,
+    "original_60_episode_manifest_entries_match": true,
+    "original_data_reader_and_transform_preserved": true,
+    "prefixes_full_real_h10_only": true,
+    "prefix_native_transform_probes_passed": 8,
+    "prefixes_unchanged_from_previous_tail15": true,
+    "training_complete_epochs": 50,
+    "training_updates": 4050,
+    "training_samples_seen": 515400,
+    "smoke_replay_verified": true,
+    "evaluation_checkpoint_manifest_matches_training": true
+  },
+  "confirmed_comparison_difference": "Historical A60 loads full weights before dtype conversion; prefix4 restores full weights after dtype setup. Effect on rollout success has not been isolated.",
+  "training_recipe_consequences": {
+    "a60_updates": 3900,
+    "prefix4_updates": 4050,
+    "prefix_windows": 444,
+    "all_windows": 10308,
+    "prefix_fraction": 0.04307334109429569,
+    "shuffle_and_flow_noise_assignment_change": true
+  },
+  "a60_task_comparison": [
+    {
+      "suite": "libero_spatial",
+      "task_id": 0,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 1,
+      "a60_successes": 50,
+      "prefix4_successes": 49,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 2,
+      "a60_successes": 50,
+      "prefix4_successes": 49,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 3,
+      "a60_successes": 44,
+      "prefix4_successes": 45,
+      "delta_successes": 1
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 4,
+      "a60_successes": 43,
+      "prefix4_successes": 42,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 5,
+      "a60_successes": 48,
+      "prefix4_successes": 48,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 6,
+      "a60_successes": 37,
+      "prefix4_successes": 38,
+      "delta_successes": 1
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 7,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 8,
+      "a60_successes": 49,
+      "prefix4_successes": 49,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_spatial",
+      "task_id": 9,
+      "a60_successes": 15,
+      "prefix4_successes": 11,
+      "delta_successes": -4
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 0,
+      "a60_successes": 45,
+      "prefix4_successes": 47,
+      "delta_successes": 2
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 1,
+      "a60_successes": 49,
+      "prefix4_successes": 49,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 2,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 3,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 4,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 5,
+      "a60_successes": 48,
+      "prefix4_successes": 49,
+      "delta_successes": 1
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 6,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 7,
+      "a60_successes": 50,
+      "prefix4_successes": 49,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 8,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 9,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 0,
+      "a60_successes": 37,
+      "prefix4_successes": 40,
+      "delta_successes": 3
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 1,
+      "a60_successes": 49,
+      "prefix4_successes": 47,
+      "delta_successes": -2
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 2,
+      "a60_successes": 49,
+      "prefix4_successes": 48,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 3,
+      "a60_successes": 35,
+      "prefix4_successes": 31,
+      "delta_successes": -4
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 4,
+      "a60_successes": 43,
+      "prefix4_successes": 41,
+      "delta_successes": -2
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 5,
+      "a60_successes": 39,
+      "prefix4_successes": 42,
+      "delta_successes": 3
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 6,
+      "a60_successes": 47,
+      "prefix4_successes": 48,
+      "delta_successes": 1
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 7,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 8,
+      "a60_successes": 50,
+      "prefix4_successes": 50,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 9,
+      "a60_successes": 29,
+      "prefix4_successes": 32,
+      "delta_successes": 3
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 0,
+      "a60_successes": 11,
+      "prefix4_successes": 11,
+      "delta_successes": 0
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 1,
+      "a60_successes": 16,
+      "prefix4_successes": 15,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 2,
+      "a60_successes": 37,
+      "prefix4_successes": 30,
+      "delta_successes": -7
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 3,
+      "a60_successes": 40,
+      "prefix4_successes": 36,
+      "delta_successes": -4
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 4,
+      "a60_successes": 8,
+      "prefix4_successes": 7,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 5,
+      "a60_successes": 9,
+      "prefix4_successes": 4,
+      "delta_successes": -5
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 6,
+      "a60_successes": 7,
+      "prefix4_successes": 5,
+      "delta_successes": -2
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 7,
+      "a60_successes": 22,
+      "prefix4_successes": 20,
+      "delta_successes": -2
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 8,
+      "a60_successes": 3,
+      "prefix4_successes": 2,
+      "delta_successes": -1
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 9,
+      "a60_successes": 10,
+      "prefix4_successes": 11,
+      "delta_successes": 1
+    }
+  ],
+  "paired_gains": 88,
+  "paired_losses": 112,
+  "conclusion": "No new implementation defect identified in this audit; bugs are not ruled out. Lower aggregate score is predominantly in long-horizon tasks. Neither a data-quality cause nor a loading-precision cause has been established.",
+  "controlled_loading_comparison_performed": false
+}
